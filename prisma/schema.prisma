@@ -1,0 +1,148 @@
+// database setup for setting up the env variable and selected database provider
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// where the generated models and the model's querys will be resulted to
+generator client {
+  provider = "prisma-client-js"
+}
+
+// all the available roles available under the user model role column
+enum UserRoleTypes {
+  PASSENGER
+  DRIVER
+  ADMIN
+  STAFF
+}
+
+// all the types of available bus types for bus model's bus type column
+enum BusTypes {
+  AC_BUS
+  NONE_AC_BUS
+  SLEEPER_BUS
+}
+
+// all the available types to set as the status of booking seats in the booking table's status column
+enum BookingStatusTypes {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+// all the payment status types used for the column status of payment table
+enum PaymentStatusTypes {
+  SUCCESS
+  REFUNDED
+}
+
+// all the payment method types used for the column method of payment table
+enum PaymentMethodTypes {
+  ONLINE
+  CASH
+}
+
+// the user model that generates a random uuid as the document's primary key identifier with fields like names, email, phone number, profile picture and their roles
+model User {
+  id             String        @id @default(uuid())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  phoneNumber    String        @unique
+  profilePicture String        @default("https://i.pinimg.com/736x/f1/0f/f7/f10ff70a7155e5ab666bcdd1b45b726d.jpg")
+  role           UserRoleTypes
+  password       String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  Bus            Bus[]
+  Booking        Booking[]
+}
+
+// the bus model that generates a unique id and holds the information of the bus's registration number, type, total seats, foreign key driver id and picture of the bus
+model Bus {
+  id                    String     @id @default(uuid())
+  busRegistrationNumber String
+  busType               BusTypes
+  totalSeats            Int
+  driver                User       @relation(fields: [driverId], references: [id])
+  driverId              String
+  busPicture            String
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  Schedule              Schedule[]
+}
+
+// the route model will save all informations related to the bus's route of origins and destination, estimated time of journey, distance and etc
+model Route {
+  id                 String     @id @default(uuid())
+  origin             String
+  destination        String
+  distanceInKm       Int
+  estimatedTimeInMin Int
+  createdAt          DateTime   @default(now())
+  modifiedAt         DateTime   @updatedAt
+  Schedule           Schedule[]
+}
+
+// the schedule model will save informations of schedules of per day that would make sure to hold the information of bus, routes and time of the journey etc
+model Schedule {
+  id                         String    @id @default(uuid())
+  bus                        Bus       @relation(fields: [busId], references: [id])
+  busId                      String
+  route                      Route     @relation(fields: [routeId], references: [id])
+  routeId                    String
+  estimatedDepartureTimeDate DateTime
+  estimatedArrivalTimeDate   DateTime
+  createdAt                  DateTime  @default(now())
+  modifiedAt                 DateTime  @updatedAt
+  Booking                    Booking[]
+}
+
+// the booking model will hold the information user id, schedule id, total price of the booked seats, status of the booking and more
+model Booking {
+  id         String             @id @default(uuid())
+  user       User               @relation(fields: [userId], references: [id])
+  userId     String
+  schedule   Schedule           @relation(fields: [scheduleId], references: [id])
+  scheduleId String
+  totalPrice Int
+  status     BookingStatusTypes
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  BookedSeat BookedSeat[]
+  Payment    Payment[]
+  Ticket     Ticket[]
+}
+
+// the booking seat models saves the data of the booked seats with columns like the bookingid and seatnumber this model is neccessary for keeping tracks of seat data
+model BookedSeat {
+  id         String   @id @default(uuid())
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  bookingId  String
+  seatNumber Int[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// the payment model that is used for saving the payment informations after booking seats
+model Payment {
+  id            String             @id @default(uuid())
+  booking       Booking            @relation(fields: [bookingId], references: [id])
+  bookingId     String
+  method        PaymentMethodTypes
+  referenceCode String
+  status        PaymentStatusTypes
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+// the ticket module that is used for storing the bought ticket's information like the booking pdf purchase time etc 
+model Ticket {
+  id           String   @id @default(uuid())
+  booking      Booking  @relation(fields: [bookingId], references: [id])
+  bookingId    String
+  ticketPdfUrl String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
