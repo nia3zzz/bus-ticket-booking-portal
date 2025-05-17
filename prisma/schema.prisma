@@ -45,18 +45,20 @@ enum PaymentMethodTypes {
 
 // the user model that generates a random uuid as the document's primary key identifier with fields like names, email, phone number, profile picture and their roles
 model User {
-  id             String        @id @default(uuid())
+  id             String          @id @default(uuid())
   firstName      String
   lastName       String
-  email          String        @unique
-  phoneNumber    String        @unique
-  profilePicture String        @default("https://i.pinimg.com/736x/f1/0f/f7/f10ff70a7155e5ab666bcdd1b45b726d.jpg")
+  email          String          @unique
+  phoneNumber    String          @unique
+  profilePicture String          @default("https://i.pinimg.com/736x/f1/0f/f7/f10ff70a7155e5ab666bcdd1b45b726d.jpg")
   role           UserRoleTypes
   password       String
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   Bus            Bus[]
   Booking        Booking[]
+  Session        Session[]
+  Verifications  Verifications[]
 }
 
 // the bus model that generates a unique id and holds the information of the bus's registration number, type, total seats, foreign key driver id and picture of the bus
@@ -145,4 +147,23 @@ model Ticket {
   ticketPdfUrl String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// the sessions model is used to hold the information of a logged in user's session
+model Session {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// the verifications model is used to hold the data that is saved by hashing the 6 digit code 
+model Verifications {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  hashedCode String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
