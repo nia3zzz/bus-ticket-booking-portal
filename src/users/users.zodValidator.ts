@@ -85,4 +85,38 @@ const createUserValidator = z.object({
     .min(6, 'Password has be more than 6 characters.'),
 });
 
-export { createUserValidator };
+//defining a login validator that will validate the request body of the login route using the folling validator object
+const loginValidator = z
+  .object({
+    email: z
+      .string({
+        invalid_type_error: 'Email must be a string.',
+      })
+      .email('Please provide a valid email.')
+      .optional(),
+
+    phoneNumber: z
+      .string({
+        invalid_type_error: 'Phone number must be a string.',
+      })
+      .length(14, 'A phone number must be 14 characters.')
+      .optional(),
+
+    password: z
+      .string({
+        required_error: 'Password is required.',
+        invalid_type_error: 'Password must be a string.',
+      })
+      .min(6, 'Password has be more than 6 characters.'),
+  })
+  .refine(
+    (data) => {
+      return (
+        (data.email !== null && data.email !== undefined) ||
+        (data.phoneNumber !== null && data.phoneNumber !== undefined)
+      );
+    },
+    { message: 'At least one of email or phone number must be provided.' },
+  );
+
+export { createUserValidator, loginValidator };

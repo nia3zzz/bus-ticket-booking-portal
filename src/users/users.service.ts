@@ -3,12 +3,15 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createUserValidator } from './users.zodValidator';
+import { createUserValidator, loginValidator } from './users.zodValidator';
 import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { cloudinaryConfig } from 'src/cloudinaryConfig';
+import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
+import * as jwt from 'jsonwebtoken';
 
 // interface to mark what we need from result of cloudinary upload function
 interface uploadedImageInterface {
@@ -92,6 +95,98 @@ export class UsersService {
         status: 'success',
         message: 'User has been created successfully.',
       };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //login service for the login controller which will validate data, do some data processing, generate token cookie and send to the client
+  async login(requestBody: typeof loginValidator): Promise<string> {
+    // validate the req body using a zod schema
+    const validatedData = loginValidator.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if the user exists based on the optional fields email or phone number provided
+    let foundExistingUser: User | null = null;
+
+    if (validatedData.data.email != null) {
+      foundExistingUser = await this.prisma.user.findUnique({
+        where: {
+          email: validatedData.data.email,
+        },
+      });
+    } else if (validatedData.data.phoneNumber != null) {
+      foundExistingUser = await this.prisma.user.findUnique({
+        where: {
+          phoneNumber: validatedData.data.phoneNumber,
+        },
+      });
+    }
+
+    // return error messages if still theres no users found
+    if (foundExistingUser === null) {
+      throw new UnauthorizedException({
+        status: 'error',
+        message: 'Invalid Credentials.',
+      });
+    }
+
+    // check if the user has been marked as a verified user that has verified their emails using a 6 digit code
+    if (foundExistingUser.isVerified === false) {
+      // this SendMailToVerifyEmailWithCode returns the hashed string that will be saved in database
+      const hashedRandomSixDigitCode =
+        await SendMailToVerifyEmailWithCode(foundExistingUser);
+
+      await this.prisma.verifications.create({
+        data: {
+          userId: foundExistingUser.id,
+          hashedCode: hashedRandomSixDigitCode,
+        },
+      });
+
+      throw new UnauthorizedException({
+        status: 'error',
+        message: 'A 6 digit code has been sent to your email for verification.',
+      });
+    }
+    // check and verify the password
+    if (
+      (await argon2.verify(
+        foundExistingUser.password,
+        validatedData.data.password,
+      )) !== true
+    ) {
+      throw new UnauthorizedException({
+        status: 'error',
+        message: 'Invalid Credentials.',
+      });
+    }
+    try {
+      // generate a jwt, save a session and set the jwt as cookie to send it to the client
+      const token: string = jwt.sign(
+        { id: foundExistingUser.id },
+        process.env.JWT_SECRET_KEY as string,
+        { expiresIn: 60 * 60 * 24 * 30 },
+      );
+
+      // save the user session
+      await this.prisma.session.create({
+        data: {
+          userId: foundExistingUser.id,
+        },
+      });
+
+      return token;
     } catch (error) {
       throw new InternalServerErrorException({
         status: 'error',
