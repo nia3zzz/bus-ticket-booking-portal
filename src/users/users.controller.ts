@@ -1,9 +1,17 @@
-import { Controller, Post, HttpCode, Body, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  HttpCode,
+  Body,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
 import { createUserValidator, loginValidator } from './users.zodValidator';
-import { Request, Response } from 'express';
-import { json } from 'stream/consumers';
+import { Response } from 'express';
+import { AuthGuard, customExpressInterface } from './users.guard';
 
 @Controller('users')
 export class UsersController {
@@ -25,10 +33,24 @@ export class UsersController {
     @Body() requestBody: typeof loginValidator,
     @Res() response: Response,
   ): Promise<Response> {
-    const token = await this.userService.login(requestBody);
+    const token = await this.userService.loginUserService(requestBody);
     return response.status(200).cookie('token', token).json({
       status: 'success',
       message: 'User has been logged in.',
+    });
+  }
+
+  // the logout controller for implimenting the logics of a user logging out by using sessions and checking authorization and authentication of user
+  @Post('/logout')
+  @UseGuards(AuthGuard)
+  async logout(
+    @Req() request: customExpressInterface,
+    @Res() response: Response,
+  ): Promise<Response> {
+    await this.userService.logoutUserService(request);
+    return response.status(200).clearCookie('token').json({
+      status: 'success',
+      message: 'User has been logged out.',
     });
   }
 }

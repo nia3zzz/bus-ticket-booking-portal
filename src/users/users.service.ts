@@ -12,6 +12,7 @@ import * as argon2 from 'argon2';
 import { cloudinaryConfig } from 'src/cloudinaryConfig';
 import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
 import * as jwt from 'jsonwebtoken';
+import { customExpressInterface } from './users.guard';
 
 // interface to mark what we need from result of cloudinary upload function
 interface uploadedImageInterface {
@@ -104,7 +105,7 @@ export class UsersService {
   }
 
   //login service for the login controller which will validate data, do some data processing, generate token cookie and send to the client
-  async login(requestBody: typeof loginValidator): Promise<string> {
+  async loginUserService(requestBody: typeof loginValidator): Promise<string> {
     // validate the req body using a zod schema
     const validatedData = loginValidator.safeParse(requestBody);
 
@@ -188,6 +189,25 @@ export class UsersService {
 
       return token;
     } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // the logout controller service class method that works to delete the session of a user's session and sends a success message
+  async logoutUserService(request: customExpressInterface): Promise<boolean> {
+    try {
+      // delete session and return true to indicate success for deleting cookie from the controller
+      await this.prisma.session.deleteMany({
+        where: {
+          userId: request.foundExistingUser.id,
+        },
+      });
+
+      return true;
+    } catch {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong.',
