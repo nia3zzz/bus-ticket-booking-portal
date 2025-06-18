@@ -85,4 +85,75 @@ export class AdminsService {
       });
     }
   }
+
+  // this service removes the driver role of an already exisiting driver to a default role
+  async removeDriverService(
+    params: any,
+  ): Promise<{ status: string; message: string }> {
+    // validation of the url parameter provided
+    // using the createDriverValidator for validating remove driver route as it holds the same properties
+    const validatedData = createDriverValidtor.safeParse({
+      driverId: params.driverId,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a user currently exists with the provided user id
+    const checkProvidedUserExists: User | null =
+      await this.prisma.user.findUnique({
+        where: {
+          id: validatedData.data.driverId,
+        },
+      });
+
+    if (!checkProvidedUserExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No driver found with the provided id.',
+      });
+    }
+
+    if (checkProvidedUserExists.role === 'PASSENGER') {
+      throw new ConflictException({
+        status: 'error',
+        message: 'User is already a passenger.',
+      });
+    }
+
+    // check if the driver is eligable to be removed of their driver role
+    if (checkProvidedUserExists.role !== 'DRIVER') {
+      throw new ConflictException({
+        status: 'error',
+        message: 'User is not a driver.',
+      });
+    }
+
+    try {
+      // update the user's role to a default role of a passanger
+      await this.prisma.user.update({
+        where: {
+          id: checkProvidedUserExists.id,
+        },
+        data: {
+          role: 'PASSENGER',
+        },
+      });
+
+      return {
+        status: 'success',
+        message: "Driver's role has been changed to user.",
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
 }
