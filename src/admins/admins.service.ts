@@ -7,19 +7,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createDriverValidtor } from './admins.zodValidator';
-import { User } from '@prisma/client';
+import { addDriverValidtor, addRouteValidtor } from './admins.zodValidator';
+import { Route, User } from '@prisma/client';
 
 @Injectable()
 export class AdminsService {
   constructor(private prisma: PrismaService) {}
 
   // create driver service for adding a role of a driver to a user after they have done authentication and other measures
-  async createDriverService(
+  async addDriverService(
     params: any,
   ): Promise<{ status: string; message: string }> {
     // validation of the url parameter provided
-    const validatedData = createDriverValidtor.safeParse({
+    const validatedData = addDriverValidtor.safeParse({
       driverId: params.driverId,
     });
 
@@ -92,7 +92,7 @@ export class AdminsService {
   ): Promise<{ status: string; message: string }> {
     // validation of the url parameter provided
     // using the createDriverValidator for validating remove driver route as it holds the same properties
-    const validatedData = createDriverValidtor.safeParse({
+    const validatedData = addDriverValidtor.safeParse({
       driverId: params.driverId,
     });
 
@@ -148,6 +148,62 @@ export class AdminsService {
       return {
         status: 'success',
         message: "Driver's role has been changed to user.",
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining service functions and business logics for the creation of a route for busses to travel with with
+  async addRouteService(requestBody: typeof addRouteValidtor): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validation of the request body provided
+    const validatedData = addRouteValidtor.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a route with this origin and destination already exists
+    const checkRouteExists: Route | null = await this.prisma.route.findFirst({
+      where: {
+        origin: validatedData.data.origin,
+        destination: validatedData.data.destination,
+        distanceInKm: validatedData.data.distanceInKm,
+        estimatedTimeInMin: validatedData.data.estimatedTimeInMin,
+      },
+    });
+
+    if (checkRouteExists) {
+      throw new ConflictException({
+        status: 'error',
+        message: 'A route with this properties already exists.',
+      });
+    }
+
+    try {
+      // save the route with the provided properties in the request body
+      await this.prisma.route.create({
+        data: {
+          origin: validatedData.data.origin,
+          destination: validatedData.data.destination,
+          distanceInKm: validatedData.data.distanceInKm,
+          estimatedTimeInMin: validatedData.data.estimatedTimeInMin,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Route has been created successfully.',
       };
     } catch (error) {
       throw new InternalServerErrorException({

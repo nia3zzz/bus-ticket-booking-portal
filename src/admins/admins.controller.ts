@@ -1,6 +1,15 @@
-import { Controller, Delete, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  HttpCode,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminsService } from './admins.service';
 import { AdminsGuard } from './admins.guard';
+import { addRouteValidtor } from './admins.zodValidator';
 
 @Controller('admins')
 export class AdminsController {
@@ -10,19 +19,28 @@ export class AdminsController {
   @Post('/drivers/:driverId')
   @HttpCode(201)
   @UseGuards(AdminsGuard)
-  async createDriver(
+  async addDriver(
     @Param() params: any,
   ): Promise<{ status: string; message: string }> {
-    return this.adminsService.createDriverService(params);
+    return this.adminsService.addDriverService(params);
   }
 
   // defining controller function for the route of removing the driver role of an already existing driver and switching it with the default role of passanger
   @Delete('/drivers/:driverId')
-  @HttpCode(200)
   @UseGuards(AdminsGuard)
   async removeDriver(
     @Param() params: any,
   ): Promise<{ status: string; message: string }> {
     return this.adminsService.removeDriverService(params);
+  }
+
+  // defining controller function for the creation of a route for busses to work with
+  @Post('/routes')
+  @UseGuards(AdminsGuard)
+  async addRoute(@Body() requestBody: typeof addRouteValidtor): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.addRouteService(requestBody);
   }
 }
