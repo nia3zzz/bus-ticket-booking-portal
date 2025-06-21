@@ -8,7 +8,25 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { addDriverValidtor, addRouteValidtor } from './admins.zodValidator';
-import { Route, User } from '@prisma/client';
+import { Bus, Route, Schedule, Trip, User } from '@prisma/client';
+
+// type interface declaration for the reponse body's data propery on the get driver service
+export interface GetDriversOutputDataPropertyInterface {
+  driverId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  profilePicture: string;
+  totalCompletedTrips: number;
+  busInfo: {
+    busId: string | null;
+    busRegistrationNumber: string | null;
+    busType: string | null;
+    busPicture: string | null;
+  };
+  joinedOn: Date;
+}
 
 @Injectable()
 export class AdminsService {
@@ -204,6 +222,83 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'Route has been created successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining the controller function for the getting all the created drivers saved in the database
+  async getDriversService(): Promise<{
+    status: string;
+    message: string;
+    data: GetDriversOutputDataPropertyInterface[];
+  }> {
+    try {
+      //retireve all the drivers, drivers will contain the driver role
+      const retrievedDriversFound: User[] | [] =
+        await this.prisma.user.findMany({
+          where: {
+            role: 'DRIVER',
+          },
+        });
+
+      // retrieve all the busses that are designated with the drivers
+      const retrievedBussesFound: (Bus | null)[] = await Promise.all(
+        retrievedDriversFound.map(async (driver) => {
+          return await this.prisma.bus.findFirst({
+            where: {
+              driverId: driver.id,
+            },
+          });
+        }),
+      );
+
+      // using the index parameter with the map function as our array that holds the busses are already retrieved according to the index of the drivers
+      return {
+        status: 'success',
+        message: `${retrievedDriversFound.length} drivers have been found.`,
+        data: await Promise.all(
+          retrievedDriversFound.map(async (driver, index) => {
+            const bus: Bus | null = retrievedBussesFound[index];
+
+            // check the trip count of the driver
+            const retrievedScheduleFound: Schedule | null =
+              await this.prisma.schedule.findFirst({
+                where: {
+                  busId: bus?.id,
+                },
+              });
+
+            // from the found scedule we need to find the trip that is connected with it
+            const retrievedTripFound: (Trip | null)[] =
+              await this.prisma.trip.findMany({
+                where: {
+                  scheduleId: retrievedScheduleFound?.id,
+                },
+              });
+
+            return {
+              driverId: driver.id,
+              firstName: driver.firstName,
+              lastName: driver.lastName,
+              email: driver.email,
+              phoneNumber: driver.phoneNumber,
+              profilePicture: driver.profilePicture,
+              totalCompletedTrips: retrievedTripFound.length,
+              busInfo: {
+                busId: bus?.id ?? null,
+                busRegistrationNumber: bus?.busRegistrationNumber ?? null,
+                busType: bus?.busType ?? null,
+                busPicture: bus?.busPicture ?? null,
+              },
+              joinedOn: driver.createdAt,
+            };
+          }),
+        ),
       };
     } catch (error) {
       throw new InternalServerErrorException({

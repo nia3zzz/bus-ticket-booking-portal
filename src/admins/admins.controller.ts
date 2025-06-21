@@ -2,12 +2,16 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AdminsService } from './admins.service';
+import {
+  AdminsService,
+  GetDriversOutputDataPropertyInterface,
+} from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import { addRouteValidtor } from './admins.zodValidator';
 
@@ -32,6 +36,17 @@ export class AdminsController {
     @Param() params: any,
   ): Promise<{ status: string; message: string }> {
     return this.adminsService.removeDriverService(params);
+  }
+
+  // defining the controller function for the getting all the created drivers saved in the database
+  @Get('/drivers')
+  @UseGuards(AdminsGuard)
+  async getDrivers(): Promise<{
+    status: string;
+    message: string;
+    data: GetDriversOutputDataPropertyInterface[];
+  }> {
+    return this.adminsService.getDriversService();
   }
 
   // defining controller function for the creation of a route for busses to work with

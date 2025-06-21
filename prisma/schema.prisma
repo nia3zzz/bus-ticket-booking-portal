@@ -43,6 +43,13 @@ enum PaymentMethodTypes {
   CASH
 }
 
+//all the multiple type of the trip model's status types for tracting the status of a bus on trip
+enum TripStatusTypes {
+  UNTRACKED
+  PENDING
+  COMPLETED
+}
+
 // the user model that generates a random uuid as the document's primary key identifier with fields like names, email, phone number, profile picture and their roles
 model User {
   id             String          @id @default(uuid())
@@ -100,6 +107,17 @@ model Schedule {
   createdAt                  DateTime  @default(now())
   modifiedAt                 DateTime  @updatedAt
   Booking                    Booking[]
+  Trip                       Trip[]
+}
+
+// the schema model called trips will be used to store the information of status, route, schedule and driver and bus information of journy buses
+model Trip {
+  id         String          @id @default(uuid())
+  schedule   Schedule        @relation(fields: [scheduleId], references: [id])
+  scheduleId String
+  status     TripStatusTypes
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 }
 
 // the booking model will hold the information user id, schedule id, total price of the booked seats, status of the booking and more
