@@ -11,6 +11,7 @@ import {
 import {
   AdminsService,
   GetDriversOutputDataPropertyInterface,
+  GetRoutesOutputDataPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import { addRouteValidtor } from './admins.zodValidator';
@@ -57,5 +58,16 @@ export class AdminsController {
     message: string;
   }> {
     return this.adminsService.addRouteService(requestBody);
+  }
+
+  // defining a controller function for the sending a list of all the routes that the buses covers to the client
+  @Get('/routes')
+  @UseGuards(AdminsGuard)
+  async getRoutes(): Promise<{
+    status: string;
+    message: string;
+    data: GetRoutesOutputDataPropertyInterface[];
+  }> {
+    return this.adminsService.getRoutesService();
   }
 }

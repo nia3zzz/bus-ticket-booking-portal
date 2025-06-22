@@ -28,6 +28,16 @@ export interface GetDriversOutputDataPropertyInterface {
   joinedOn: Date;
 }
 
+// type inteerface declaration for the response body's data property on the get routes service
+export interface GetRoutesOutputDataPropertyInterface {
+  routeId: string;
+  origin: string;
+  destination: string;
+  distanceInKm: number;
+  estimatedTimeInMin: number;
+  createdAt: Date;
+}
+
 @Injectable()
 export class AdminsService {
   constructor(private prisma: PrismaService) {}
@@ -299,6 +309,47 @@ export class AdminsService {
             };
           }),
         ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for the sending a list of all the routes that the buses covers to the client
+  async getRoutesService(): Promise<{
+    status: string;
+    message: string;
+    data: GetRoutesOutputDataPropertyInterface[];
+  }> {
+    try {
+      // retrieve all the routes saved in the database
+      const retrievedRoutesFound: (Route | null)[] =
+        await this.prisma.route.findMany();
+
+      // filter all the empty elements by going through all the elements of the original array
+      const filteredRetrievedRoutesFound: Route[] = retrievedRoutesFound.filter(
+        (route) => {
+          return route != null;
+        },
+      );
+
+      // send the client the elements of the newly created filtered array
+      return {
+        status: 'success',
+        message: `${filteredRetrievedRoutesFound.length} routes have been found.`,
+        data: filteredRetrievedRoutesFound.map((route) => {
+          return {
+            routeId: route.id,
+            origin: route.origin,
+            destination: route.destination,
+            distanceInKm: route.distanceInKm,
+            estimatedTimeInMin: route.estimatedTimeInMin,
+            createdAt: route.createdAt,
+          };
+        }),
       };
     } catch (error) {
       throw new InternalServerErrorException({
