@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const addDriverValidtor = z.object({
+const addDriverValidator = z.object({
   driverId: z
     .string({
       required_error: 'Driver id is required.',
@@ -9,7 +9,7 @@ const addDriverValidtor = z.object({
     .length(36, 'User id must be 24 characters.'),
 });
 
-const addRouteValidtor = z.object({
+const addRouteValidator = z.object({
   origin: z.string({
     required_error: 'Origin is required.',
     invalid_type_error: 'Origin must be a string.',
@@ -28,4 +28,13 @@ const addRouteValidtor = z.object({
   }),
 });
 
-export { addDriverValidtor, addRouteValidtor };
+const deleteRouteValidator = z.object({
+  routeId: z
+    .string({
+      required_error: 'Route id is required.',
+      invalid_type_error: 'Route id must be a string.',
+    })
+    .length(36, 'Route id must be 24 characters.'),
+});
+
+export { addDriverValidator, addRouteValidator, deleteRouteValidator };

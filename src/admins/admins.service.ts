@@ -7,7 +7,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { addDriverValidtor, addRouteValidtor } from './admins.zodValidator';
+import {
+  addDriverValidator,
+  addRouteValidator,
+  deleteRouteValidator,
+} from './admins.zodValidator';
 import { Bus, Route, Schedule, Trip, User } from '@prisma/client';
 
 // type interface declaration for the reponse body's data propery on the get driver service
@@ -47,7 +51,7 @@ export class AdminsService {
     params: any,
   ): Promise<{ status: string; message: string }> {
     // validation of the url parameter provided
-    const validatedData = addDriverValidtor.safeParse({
+    const validatedData = addDriverValidator.safeParse({
       driverId: params.driverId,
     });
 
@@ -120,7 +124,7 @@ export class AdminsService {
   ): Promise<{ status: string; message: string }> {
     // validation of the url parameter provided
     // using the createDriverValidator for validating remove driver route as it holds the same properties
-    const validatedData = addDriverValidtor.safeParse({
+    const validatedData = addDriverValidator.safeParse({
       driverId: params.driverId,
     });
 
@@ -186,12 +190,12 @@ export class AdminsService {
   }
 
   // defining service functions and business logics for the creation of a route for busses to travel with with
-  async addRouteService(requestBody: typeof addRouteValidtor): Promise<{
+  async addRouteService(requestBody: typeof addRouteValidator): Promise<{
     status: string;
     message: string;
   }> {
     // validation of the request body provided
-    const validatedData = addRouteValidtor.safeParse(requestBody);
+    const validatedData = addRouteValidator.safeParse(requestBody);
 
     if (!validatedData.success) {
       throw new BadRequestException({
@@ -351,6 +355,55 @@ export class AdminsService {
           };
         }),
       };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for deleting a route and send a success message to the client
+  async deleteRouteService(params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validation of the route id given as a parameter
+    const validatedData = deleteRouteValidator.safeParse({
+      routeId: params.routeId,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a route with the given route id exists in the database
+    const checkRouteExists: Route | null = await this.prisma.route.findUnique({
+      where: {
+        id: validatedData.data.routeId,
+      },
+    });
+
+    if (!checkRouteExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No route found with the provided route id.',
+      });
+    }
+
+    try {
+      // delete the route found using the  provided path parameter
+      await this.prisma.route.delete({
+        where: {
+          id: checkRouteExists.id,
+        },
+      });
+
+      return { status: 'success', message: 'Route has been deleted.' };
     } catch (error) {
       throw new InternalServerErrorException({
         status: 'error',

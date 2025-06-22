@@ -14,7 +14,7 @@ import {
   GetRoutesOutputDataPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
-import { addRouteValidtor } from './admins.zodValidator';
+import { addRouteValidator } from './admins.zodValidator';
 
 @Controller('admins')
 export class AdminsController {
@@ -53,7 +53,7 @@ export class AdminsController {
   // defining controller function for the creation of a route for busses to work with
   @Post('/routes')
   @UseGuards(AdminsGuard)
-  async addRoute(@Body() requestBody: typeof addRouteValidtor): Promise<{
+  async addRoute(@Body() requestBody: typeof addRouteValidator): Promise<{
     status: string;
     message: string;
   }> {
@@ -69,5 +69,15 @@ export class AdminsController {
     data: GetRoutesOutputDataPropertyInterface[];
   }> {
     return this.adminsService.getRoutesService();
+  }
+
+  // defining a controller function for deleting a route and send a success message to the client
+  @Delete('/routes/:routeId')
+  @UseGuards(AdminsGuard)
+  async deleteRoute(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.deleteRouteService(params);
   }
 }
