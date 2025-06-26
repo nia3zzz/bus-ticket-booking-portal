@@ -10,9 +10,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   addDriverValidator,
   addRouteValidator,
+  createBusValidator,
+  createScheduleValidator,
   deleteRouteValidator,
+  startTripValidator,
 } from './admins.zodValidator';
 import { Bus, Route, Schedule, Trip, User } from '@prisma/client';
+import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 
 // type interface declaration for the reponse body's data propery on the get driver service
 export interface GetDriversOutputDataPropertyInterface {
@@ -404,6 +408,243 @@ export class AdminsService {
       });
 
       return { status: 'success', message: 'Route has been deleted.' };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //defining a controller function for the creation of a bus using the data provided in the request body
+  async createBusService(requestBody: typeof createBusValidator): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the request body using a defined validator
+    const validatedData = createBusValidator.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a driver exists with the provided id
+    const checkDriverExists: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: validatedData.data.driverId,
+        role: 'DRIVER',
+      },
+    });
+
+    if (!checkDriverExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No driver found with the driver id.',
+      });
+    }
+
+    // check if a bus already exits using the registration number or the driver is already mapped to a bus
+    const checkBusAlreadyExists: Bus | null = await this.prisma.bus.findFirst({
+      where: {
+        OR: [
+          { busRegistrationNumber: validatedData.data.busRegistrationNumber },
+          { driverId: checkDriverExists.id },
+        ],
+      },
+    });
+
+    if (checkBusAlreadyExists) {
+      throw new ConflictException({
+        status: 'error',
+        message:
+          'A bus with this registration number or driver already exists.',
+      });
+    }
+
+    try {
+      // upload the bus image to cloudinary and save it
+      const uploadedImage: uploadedImageInterface =
+        await cloudinaryConfig.uploader.upload(
+          validatedData.data.busPicture.path,
+        );
+
+      // save the bus now in the database
+      await this.prisma.bus.create({
+        data: {
+          busRegistrationNumber: validatedData.data.busRegistrationNumber,
+          busType: validatedData.data.busType,
+          totalSeats: validatedData.data.totalSeats,
+          driverId: validatedData.data.driverId,
+          busPicture: uploadedImage.secure_url,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'A bus has been created successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for starting a trip with schedule id and sending a success message to the client
+  async createScheduleService(
+    requestBody: typeof createScheduleValidator,
+  ): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the request body object recieved from the string
+    const validatedData = createScheduleValidator.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a bus exists using the given bus id
+    const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: validatedData.data.busId,
+      },
+    });
+
+    if (!checkBusExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No bus found with the provided bus id.',
+      });
+    }
+
+    // check if a route exists using te given route id
+    const checkRouteExists: Route | null = await this.prisma.route.findUnique({
+      where: {
+        id: validatedData.data.routeId,
+      },
+    });
+
+    if (!checkRouteExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No route found with the provided route id.',
+      });
+    }
+
+    // check if a schedule exists with one of the error causing duplicate data, route or bus
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findFirst({
+        where: {
+          OR: [
+            { busId: validatedData.data.busId },
+            { routeId: validatedData.data.routeId },
+          ],
+        },
+      });
+
+    if (checkScheduleExists) {
+      throw new ConflictException({
+        status: 'error',
+        message: 'A schedule with this configuration already exists.',
+      });
+    }
+
+    try {
+      // after all the checks are passed create the schedule
+      await this.prisma.schedule.create({
+        data: {
+          routeId: checkRouteExists.id,
+          busId: checkBusExists.id,
+          estimatedDepartureTimeDate:
+            validatedData.data.estimatedDeaurtureTimeDate,
+          estimatedArrivalTimeDate: validatedData.data.estimatedArrivalTimeDate,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'A schedule has been created successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for starting a trip with schedule id and sending a success message to the client
+  async startTripService(requestBody: typeof startTripValidator): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the request body from the requestbody parameter passed from the controller file
+    const validatedData = startTripValidator.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a schedule exists with the provided schedule id
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedData.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        statuss: 'error',
+        message: 'No schedule found with the provided schedule id.',
+      });
+    }
+
+    // check if a trip is attempting to be created while the previous one with the same schedule id is marked as completed
+    const checkTripIsAvailable: Trip | null = await this.prisma.trip.findFirst({
+      where: {
+        scheduleId: validatedData.data.scheduleId,
+        NOT: {
+          status: 'COMPLETED',
+        },
+      },
+    });
+
+    if (checkTripIsAvailable) {
+      throw new ConflictException({
+        status: 'error',
+        message:
+          'Can not start another trip, first one has not been completed.',
+      });
+    }
+
+    try {
+      // create a trip in database
+      await this.prisma.trip.create({
+        data: {
+          scheduleId: validatedData.data.scheduleId,
+          status: 'PENDING',
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Trip has been completed successfully.',
+      };
     } catch (error) {
       throw new InternalServerErrorException({
         status: 'error',

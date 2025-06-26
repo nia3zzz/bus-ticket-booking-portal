@@ -14,7 +14,13 @@ import {
   GetRoutesOutputDataPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
-import { addRouteValidator } from './admins.zodValidator';
+import {
+  addRouteValidator,
+  createBusValidator,
+  createScheduleValidator,
+  startTripValidator,
+} from './admins.zodValidator';
+import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
 
 @Controller('admins')
 export class AdminsController {
@@ -52,6 +58,7 @@ export class AdminsController {
 
   // defining controller function for the creation of a route for busses to work with
   @Post('/routes')
+  @HttpCode(201)
   @UseGuards(AdminsGuard)
   async addRoute(@Body() requestBody: typeof addRouteValidator): Promise<{
     status: string;
@@ -79,5 +86,38 @@ export class AdminsController {
     message: string;
   }> {
     return this.adminsService.deleteRouteService(params);
+  }
+
+  //defining a controller function for the creation of a bus using the data provided in the request body
+  @Post('/buses')
+  @HttpCode(201)
+  @UseGuards(AdminsGuard)
+  @FormDataRequest({ storage: FileSystemStoredFile })
+  async createBus(@Body() requestBody: typeof createBusValidator): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.createBusService(requestBody);
+  }
+
+  //defining a controller function for the creation of a schedule and map it with route and bus
+  @Post('/schedules')
+  @HttpCode(201)
+  @UseGuards(AdminsGuard)
+  async createSchedule(
+    @Body() requestBody: typeof createScheduleValidator,
+  ): Promise<{ status: String; message: string }> {
+    return this.adminsService.createScheduleService(requestBody);
+  }
+
+  // defining a controller function for starting a trip with schedule id and sending a success message to the client
+  @Post('/trips')
+  @HttpCode(201)
+  @UseGuards(AdminsGuard)
+  async startTrip(@Body() requestBody: typeof startTripValidator): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.startTripService(requestBody);
   }
 }

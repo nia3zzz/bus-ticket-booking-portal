@@ -9,15 +9,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { createUserValidator, loginValidator } from './users.zodValidator';
 import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { cloudinaryConfig } from 'src/cloudinaryConfig';
+import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
 import * as jwt from 'jsonwebtoken';
 import { customExpressInterface } from './users.guard';
-
-// interface to mark what we need from result of cloudinary upload function
-interface uploadedImageInterface {
-  secure_url: string;
-}
 
 @Injectable()
 export class UsersService {
