@@ -6,7 +6,7 @@ const addDriverValidator = z.object({
       required_error: 'Driver id is required.',
       invalid_type_error: 'Driver id must be a string.',
     })
-    .length(36, 'User id must be 24 characters.'),
+    .length(36, 'User id must be 36 characters.'),
 });
 
 const addRouteValidator = z.object({
@@ -37,7 +37,7 @@ const deleteRouteValidator = z.object({
       required_error: 'Route id is required.',
       invalid_type_error: 'Route id must be a string.',
     })
-    .length(36, 'Route id must be 24 characters.'),
+    .length(36, 'Route id must be 36 characters.'),
 });
 
 const createBusValidator = z.object({
@@ -67,7 +67,7 @@ const createBusValidator = z.object({
       required_error: 'Driver id is required.',
       invalid_type_error: 'Driver id must be a string.',
     })
-    .length(36, 'User id must be 24 characters.'),
+    .length(36, 'User id must be 36 characters.'),
 
   busPicture: z.object({
     originalName: z.string({
@@ -116,10 +116,12 @@ const createBusValidator = z.object({
 });
 
 const createScheduleValidator = z.object({
-  busId: z.string({
-    required_error: 'Bus id is required.',
-    invalid_type_error: 'Bus id must be a string.',
-  }),
+  busId: z
+    .string({
+      required_error: 'Bus id is required.',
+      invalid_type_error: 'Bus id must be a string.',
+    })
+    .length(36, 'Bus id must be 36 characters.'),
 
   routeId: z.string({
     required_error: 'Route id is required.',
@@ -143,8 +145,47 @@ const startTripValidator = z.object({
       required_error: 'Schedule id is required.',
       invalid_type_error: 'Schedule id must be a string.',
     })
-    .length(36, 'Schedule id must be 24 characters.'),
+    .length(36, 'Schedule id must be 36 characters.'),
 });
+
+const getTripsValidator = z
+  .object({
+    busId: z
+      .string({ invalid_type_error: 'Bus id must be a string.' })
+      .length(36, 'Bus id must be 36 characters.')
+      .optional(),
+
+    routeId: z
+      .string({ invalid_type_error: 'Route id must be a string' })
+      .length(36, 'Route id must be 36 characters.')
+      .optional(),
+
+    scheduleId: z
+      .string({ invalid_type_error: 'Schedule id must be a string.' })
+      .length(36, 'Schedule id must be 36 characters.')
+      .optional(),
+
+    status: z
+      .enum(['UNTRACKED', 'PENDING', 'COMPLETED'], {
+        invalid_type_error: 'Status must be a string.',
+      })
+      .optional(),
+
+    limit: z.coerce
+      .number({ invalid_type_error: 'Limit must be a number' })
+      .nonnegative('Limit can not be negetive.')
+      .optional(),
+
+    skip: z.coerce
+      .number({ invalid_type_error: 'Skip must be a number' })
+      .nonnegative('Skip can not be negetive.')
+      .optional(),
+  })
+  .refine((data) => !(data.scheduleId && (data.busId || data.routeId)), {
+    message:
+      'Invalid query: if scheduleId is provided, do not provide busId or routeId.',
+    path: ['scheduleId'],
+  });
 
 export {
   addDriverValidator,
@@ -153,4 +194,5 @@ export {
   startTripValidator,
   createBusValidator,
   createScheduleValidator,
+  getTripsValidator,
 };

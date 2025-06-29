@@ -6,12 +6,14 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   AdminsService,
   GetDriversOutputDataPropertyInterface,
   GetRoutesOutputDataPropertyInterface,
+  GetTripsOutputDataPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -119,5 +121,16 @@ export class AdminsController {
     message: string;
   }> {
     return this.adminsService.startTripService(requestBody);
+  }
+
+  //defining a controller function that will retrieve a list of trips based on filter and pagination queries
+  @Get('/trips')
+  @UseGuards(AdminsGuard)
+  async getTrips(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetTripsOutputDataPropertyInterface[];
+  }> {
+    return this.adminsService.getTripsService(requestQueries);
   }
 }

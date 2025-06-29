@@ -13,9 +13,10 @@ import {
   createBusValidator,
   createScheduleValidator,
   deleteRouteValidator,
+  getTripsValidator,
   startTripValidator,
 } from './admins.zodValidator';
-import { Bus, Route, Schedule, Trip, User } from '@prisma/client';
+import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 
 // type interface declaration for the reponse body's data propery on the get driver service
@@ -36,7 +37,7 @@ export interface GetDriversOutputDataPropertyInterface {
   joinedOn: Date;
 }
 
-// type inteerface declaration for the response body's data property on the get routes service
+// type interface declaration for the response body's data property on the get routes service
 export interface GetRoutesOutputDataPropertyInterface {
   routeId: string;
   origin: string;
@@ -44,6 +45,18 @@ export interface GetRoutesOutputDataPropertyInterface {
   distanceInKm: number;
   estimatedTimeInMin: number;
   createdAt: Date;
+}
+
+// type interface declaration for the response body's data property on the get trips service
+export interface GetTripsOutputDataPropertyInterface {
+  tripId: string | null;
+  scheduleId: string | null;
+  status: 'UNTRACKED' | 'PENDING' | 'COMPLETED' | null;
+  driverId: string | null;
+  driverFirstName: string | null;
+  busId: string | null;
+  busRegistrationNumber: string | null;
+  createdAt: Date | null;
 }
 
 @Injectable()
@@ -256,7 +269,7 @@ export class AdminsService {
     data: GetDriversOutputDataPropertyInterface[];
   }> {
     try {
-      //retireve all the drivers, drivers will contain the driver role
+      //retrieve all the drivers, drivers will contain the driver role
       const retrievedDriversFound: User[] | [] =
         await this.prisma.user.findMany({
           where: {
@@ -644,6 +657,200 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'Trip has been completed successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //defining a controller function that will retrieve a list of trips based on filter and pagination queries
+  async getTripsService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetTripsOutputDataPropertyInterface[];
+  }> {
+    // validate the recieved request queries from the controller
+    const validatedQueries = getTripsValidator.safeParse(requestQueries);
+
+    if (!validatedQueries.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedQueries.error.errors,
+      });
+    }
+
+    try {
+      //if the queries busid and route id are provided in the url path retieve all schedules using the queries
+      if (validatedQueries.data.busId || validatedQueries.data.routeId) {
+        // create a query filter object that would be used to store queres and filter schedules based on them
+        const orConditions: Prisma.ScheduleWhereInput[] = [];
+
+        if (validatedQueries.data.busId) {
+          orConditions.push({ busId: validatedQueries.data.busId });
+        }
+
+        if (validatedQueries.data.routeId) {
+          orConditions.push({ routeId: validatedQueries.data.routeId });
+        }
+
+        const retrievedSchedules: Schedule[] | null =
+          await this.prisma.schedule.findMany({
+            where: {
+              OR: orConditions.length > 0 ? orConditions : undefined,
+            },
+            take: validatedQueries.data.limit ?? 10,
+            skip: validatedQueries.data.skip ?? 0,
+          });
+
+        return {
+          status: 'success',
+          message: 'Trip data has been fetched.',
+          data: await Promise.all(
+            retrievedSchedules.map(async (retrievedSchedule) => {
+              // retrieve the bus from the schedule id
+              const retrivedBus: Bus | null = await this.prisma.bus.findUnique({
+                where: {
+                  id: retrievedSchedule.busId,
+                },
+              });
+
+              // retrieve the driver from the bus id
+              const retrivedDriver: User | null =
+                await this.prisma.user.findUnique({
+                  where: {
+                    id: retrivedBus?.driverId,
+                  },
+                });
+
+              const retrievedTrip: Trip | null =
+                await this.prisma.trip.findFirst({
+                  where: {
+                    scheduleId: retrievedSchedule.id,
+                  },
+                });
+
+              return {
+                tripId: retrievedTrip?.id ?? null,
+                scheduleId: retrievedSchedule.id,
+                status: retrievedTrip?.status ?? null,
+                driverId: retrivedDriver?.id ?? null,
+                driverFirstName: retrivedDriver?.firstName ?? null,
+                busId: retrivedDriver?.id ?? null,
+                busRegistrationNumber:
+                  retrivedBus?.busRegistrationNumber ?? null,
+                createdAt: retrievedTrip?.createdAt ?? null,
+              };
+            }),
+          ),
+        };
+      }
+
+      // if the query schedule id is provided only
+      if (validatedQueries.data.scheduleId) {
+        // retrieve all the trips using the provided schedule id
+        const retrievedTrips: Trip[] | null = await this.prisma.trip.findMany({
+          where: {
+            scheduleId: validatedQueries.data.scheduleId,
+          },
+          take: validatedQueries.data.limit ?? 10,
+          skip: validatedQueries.data.skip ?? 0,
+        });
+
+        return {
+          status: 'success',
+          message: 'Trip data has been fetched.',
+          data: await Promise.all(
+            retrievedTrips.map(async (retrievedTrip) => {
+              // retrieve the schedule from all the the found trips
+              const retrievedSchedule: Schedule | null =
+                await this.prisma.schedule.findFirst({
+                  where: {
+                    id: retrievedTrip.scheduleId,
+                  },
+                });
+
+              // retrieve the bus from the schedule id
+              const retrieveBus: Bus | null = await this.prisma.bus.findUnique({
+                where: {
+                  id: retrievedSchedule?.busId,
+                },
+              });
+
+              // retrieve the driver from the bus id
+              const retrieveDriver: User | null =
+                await this.prisma.user.findUnique({
+                  where: {
+                    id: retrieveBus?.driverId,
+                  },
+                });
+
+              return {
+                tripId: retrievedTrip.id ?? null,
+                scheduleId: retrievedSchedule?.id ?? null,
+                status: retrievedTrip.status ?? null,
+                driverId: retrieveDriver?.id ?? null,
+                driverFirstName: retrieveDriver?.firstName ?? null,
+                busId: retrieveBus?.id ?? null,
+                busRegistrationNumber:
+                  retrieveBus?.busRegistrationNumber ?? null,
+                createdAt: retrievedTrip.createdAt ?? null,
+              };
+            }),
+          ),
+        };
+      }
+
+      // now keeping the default case in mind where no queries are provided
+      const retrievedTrips: Trip[] | null = await this.prisma.trip.findMany({
+        take: validatedQueries.data.limit ?? 10,
+        skip: validatedQueries.data.skip ?? 0,
+      });
+
+      return {
+        status: 'success',
+        message: 'Trip data has been fetched.',
+        data: await Promise.all(
+          retrievedTrips.map(async (retrievedTrip) => {
+            // retrieve all the schedules from the retrieved trip
+            const retrievedSchedule: Schedule | null =
+              await this.prisma.schedule.findUnique({
+                where: {
+                  id: retrievedTrip.scheduleId,
+                },
+              });
+
+            // retrieve the bus from the schedule
+            const retrievedBus: Bus | null = await this.prisma.bus.findUnique({
+              where: {
+                id: retrievedSchedule?.busId,
+              },
+            });
+
+            // retrieve the driver from the bus
+            const retrievedDriver: User | null =
+              await this.prisma.user.findUnique({
+                where: {
+                  id: retrievedBus?.driverId,
+                },
+              });
+
+            return {
+              tripId: retrievedTrip?.id ?? null,
+              scheduleId: retrievedSchedule?.id ?? null,
+              status: retrievedTrip?.status ?? null,
+              driverId: retrievedDriver?.id ?? null,
+              driverFirstName: retrievedDriver?.firstName ?? null,
+              busId: retrievedBus?.id ?? null,
+              busRegistrationNumber:
+                retrievedBus?.busRegistrationNumber ?? null,
+              createdAt: retrievedTrip.createdAt ?? null,
+            };
+          }),
+        ),
       };
     } catch (error) {
       throw new InternalServerErrorException({
