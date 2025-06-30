@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -144,5 +145,18 @@ export class AdminsController {
     data: GetTripOutputDataPropertyInterface;
   }> {
     return this.adminsService.getTripService(params);
+  }
+
+  // defining a controller function that will update the status of a trip that is in default pendind status
+  @Put('/trips/:tripId')
+  @UseGuards(AdminsGuard)
+  async updateTripStatus(
+    @Param() params: any,
+    @Body() requestBody: 'UNTRACKED' | 'COMPLETED',
+  ): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.updateTripStatusService({ params, requestBody });
   }
 }

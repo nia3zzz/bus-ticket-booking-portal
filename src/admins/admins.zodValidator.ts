@@ -196,6 +196,19 @@ const getTripValidator = z.object({
     .length(36, 'Trip id must be 36 characters.'),
 });
 
+const updateTripStatusValidator = z.object({
+  tripId: z
+    .string({
+      required_error: 'Trip id is required.',
+      invalid_type_error: 'Trip id must be a string.',
+    })
+    .length(36, 'Trip id must be 36 characters.'),
+  status: z.enum(['UNTRACKED', 'COMPLETED'], {
+    required_error: 'Status is required.',
+    invalid_type_error: 'Status must be a string.',
+  }),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -205,4 +218,5 @@ export {
   createScheduleValidator,
   getTripsValidator,
   getTripValidator,
+  updateTripStatusValidator,
 };

@@ -16,6 +16,7 @@ import {
   getTripsValidator,
   getTripValidator,
   startTripValidator,
+  updateTripStatusValidator,
 } from './admins.zodValidator';
 import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
@@ -972,6 +973,77 @@ export class AdminsService {
 
           createdAt: checkTripExists.createdAt,
         },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will update the status of a trip that is in default pendind status
+  async updateTripStatusService(requestParamBody: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the data coming from the client to make sure it matches the expected type
+    const validatedData = updateTripStatusValidator.safeParse({
+      tripId: requestParamBody.params.tripId,
+      status: requestParamBody.requestBody.status,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a trip exists withh the provided trip id
+    const checkTripExists: Trip | null = await this.prisma.trip.findUnique({
+      where: {
+        id: validatedData.data.tripId,
+      },
+    });
+
+    if (!checkTripExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No trip found with the provided trip id.',
+      });
+    }
+
+    // elgebility checks before updating status
+    if (checkTripExists.status === 'COMPLETED') {
+      throw new ConflictException({
+        status: 'error',
+        message: 'This trip is already completed cannot update status.',
+      });
+    }
+
+    if (checkTripExists.status === validatedData.data.status) {
+      throw new ConflictException({
+        status: 'error',
+        message: `This trip status is already marked as ${validatedData.data.status}.`,
+      });
+    }
+
+    try {
+      // if all the checks have passed update the status of the trip
+      await this.prisma.trip.update({
+        where: {
+          id: checkTripExists.id,
+        },
+        data: {
+          status: validatedData.data.status,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Status of this trip has been updated successfully.',
       };
     } catch (error) {
       throw new InternalServerErrorException({
