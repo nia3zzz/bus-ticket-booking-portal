@@ -187,6 +187,15 @@ const getTripsValidator = z
     path: ['scheduleId'],
   });
 
+const getTripValidator = z.object({
+  tripId: z
+    .string({
+      required_error: 'Trip id is required.',
+      invalid_type_error: 'Trip id must be a string.',
+    })
+    .length(36, 'Trip id must be 36 characters.'),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -195,4 +204,5 @@ export {
   createBusValidator,
   createScheduleValidator,
   getTripsValidator,
+  getTripValidator,
 };

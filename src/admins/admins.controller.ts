@@ -13,6 +13,7 @@ import {
   AdminsService,
   GetDriversOutputDataPropertyInterface,
   GetRoutesOutputDataPropertyInterface,
+  GetTripOutputDataPropertyInterface,
   GetTripsOutputDataPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
@@ -132,5 +133,16 @@ export class AdminsController {
     data: GetTripsOutputDataPropertyInterface[];
   }> {
     return this.adminsService.getTripsService(requestQueries);
+  }
+
+  //defining a controller function that will retrieve data related to a trip
+  @Get('/trips/:tripId')
+  @UseGuards(AdminsGuard)
+  async getTrip(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetTripOutputDataPropertyInterface;
+  }> {
+    return this.adminsService.getTripService(params);
   }
 }
