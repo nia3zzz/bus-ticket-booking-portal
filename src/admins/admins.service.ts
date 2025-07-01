@@ -1052,4 +1052,54 @@ export class AdminsService {
       });
     }
   }
+
+  // defining a controller function that will delete an existing trip
+  async deleteTripService(params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validating the parameter of trip id using the same validator as get trip for it's same property
+    const validatedData = getTripValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a trip exists with the provided trip id parameter
+    const checkTripExists: Trip | null = await this.prisma.trip.findUnique({
+      where: {
+        id: validatedData.data.tripId,
+      },
+    });
+
+    if (!checkTripExists) {
+      throw new NotFoundException({
+        status: 'success',
+        message: 'No trip found with the provided trip id.',
+      });
+    }
+
+    try {
+      // delete the trip after going through all the checks
+      await this.prisma.trip.delete({
+        where: {
+          id: checkTripExists.id,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Trip has been deleted.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
 }

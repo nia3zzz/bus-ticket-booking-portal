@@ -159,4 +159,14 @@ export class AdminsController {
   }> {
     return this.adminsService.updateTripStatusService({ params, requestBody });
   }
+
+  // defining a controller function that will delete an existing trip
+  @Delete('/trips/:tripId')
+  @UseGuards(AdminsGuard)
+  async deleteTrip(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.deleteTripService(params);
+  }
 }
