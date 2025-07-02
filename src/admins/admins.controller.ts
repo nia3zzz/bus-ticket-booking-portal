@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   AdminsService,
+  GetBusesOutputDataPropertyInterface,
   GetDriversOutputDataPropertyInterface,
   GetRoutesOutputDataPropertyInterface,
   GetTripOutputDataPropertyInterface,
@@ -102,6 +103,17 @@ export class AdminsController {
     message: string;
   }> {
     return this.adminsService.createBusService(requestBody);
+  }
+
+  // defining a controller function for retriving a list of buses
+  @Get('/buses')
+  @UseGuards(AdminsGuard)
+  async getBuses(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: String;
+    data: GetBusesOutputDataPropertyInterface[];
+  }> {
+    return this.adminsService.getBusesService(requestQueries);
   }
 
   //defining a controller function for the creation of a schedule and map it with route and bus

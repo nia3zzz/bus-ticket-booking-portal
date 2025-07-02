@@ -13,6 +13,7 @@ import {
   createBusValidator,
   createScheduleValidator,
   deleteRouteValidator,
+  getBusesValidator,
   getTripsValidator,
   getTripValidator,
   startTripValidator,
@@ -20,6 +21,7 @@ import {
 } from './admins.zodValidator';
 import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
+import { BusTypes } from '@prisma/client';
 
 // type interface declaration for the reponse body's data propery on the get driver service
 export interface GetDriversOutputDataPropertyInterface {
@@ -83,6 +85,21 @@ export interface GetTripOutputDataPropertyInterface {
     busPicture: string | null;
   };
 
+  createdAt: Date;
+}
+
+//type interface declaration for the get buses response objects data property
+export interface GetBusesOutputDataPropertyInterface {
+  busId: string;
+  busRegistrationNumber: string;
+  busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS';
+  driverId: string | null;
+  driverFirstName: string | null;
+  schedule: {
+    scheduleId: string | null;
+    origin: string | null;
+    destination: string | null;
+  };
   createdAt: Date;
 }
 
@@ -526,6 +543,100 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'A bus has been created successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  async getBusesService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBusesOutputDataPropertyInterface[];
+  }> {
+    // validate the request queries recieved
+    const validatedData = getBusesValidator.safeParse(requestQueries);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    try {
+      // query filter variable
+      let where: any = {};
+
+      // if bus type is provided
+      if (validatedData.data.busType) {
+        where.busType = { equals: validatedData.data.busType as BusTypes };
+      }
+
+      if (validatedData.data.minSeats || validatedData.data.maxSeats) {
+        where.totalSeats = {};
+        if (validatedData.data.minSeats) {
+          where.totalSeats.gte = validatedData.data.minSeats;
+        }
+        if (validatedData.data.maxSeats) {
+          where.totalSeats.lte = validatedData.data.maxSeats;
+        }
+      }
+
+      // retrieve all the buses using the potential provided filter
+      const retrievedBussesFound = await this.prisma.bus.findMany({
+        where,
+      });
+
+      return {
+        status: 'success',
+        message: `${retrievedBussesFound.length} buses have been found.`,
+        data: await Promise.all(
+          retrievedBussesFound.map(async (retrievedBus) => {
+            //retrieve the driver that is linked to the bus
+            const retrievedDriver: User | null =
+              await this.prisma.user.findUnique({
+                where: {
+                  id: retrievedBus.driverId,
+                },
+              });
+
+            //retrieve the schedule which will be linked with the bus id
+            const retrievedSchedule: Schedule | null =
+              await this.prisma.schedule.findFirst({
+                where: {
+                  busId: retrievedBus.id,
+                },
+              });
+
+            //retrieve the route from the schedule for each bus
+            const retrievedRoute: Route | null =
+              await this.prisma.route.findFirst({
+                where: {
+                  id: retrievedSchedule?.routeId,
+                },
+              });
+
+            return {
+              busId: retrievedBus.id,
+              busRegistrationNumber: retrievedBus.busRegistrationNumber,
+              busType: retrievedBus.busType,
+              totalSeats: retrievedBus.totalSeats,
+              driverId: retrievedDriver?.id ?? null,
+              driverFirstName: retrievedDriver?.firstName ?? null,
+              schedule: {
+                scheduleId: retrievedSchedule?.id ?? null,
+                origin: retrievedRoute?.origin ?? null,
+                destination: retrievedRoute?.destination ?? null,
+              },
+              createdAt: retrievedBus.createdAt,
+            };
+          }),
+        ),
       };
     } catch (error) {
       throw new InternalServerErrorException({

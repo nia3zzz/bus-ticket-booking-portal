@@ -203,11 +203,40 @@ const updateTripStatusValidator = z.object({
       invalid_type_error: 'Trip id must be a string.',
     })
     .length(36, 'Trip id must be 36 characters.'),
+
   status: z.enum(['UNTRACKED', 'COMPLETED'], {
     required_error: 'Status is required.',
     invalid_type_error: 'Status must be a string.',
   }),
 });
+
+const getBusesValidator = z
+  .object({
+    busType: z
+      .enum(['AC_BUS', 'NONE_AC_BUS', 'SLEEPER_BUS'], {
+        invalid_type_error: 'Status must be a string.',
+      })
+      .optional(),
+
+    minSeats: z.coerce
+      .number({ invalid_type_error: 'Minimum seats must be a number.' })
+      .min(33, 'A minimum of 33 seats are supported.')
+      .max(60, 'A maximum of 60 seats are supported.')
+      .optional(),
+
+    maxSeats: z.coerce
+      .number({ invalid_type_error: 'Maximum seats must be a number.' })
+      .min(33, 'A minimum of 33 seats are supported.')
+      .max(60, 'A maximum of 60 seats are supported.')
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      !data.minSeats || !data.maxSeats || data.minSeats <= data.maxSeats,
+    {
+      message: 'Minimum seats can not be more than maximum seats.',
+    },
+  );
 
 export {
   addDriverValidator,
@@ -219,4 +248,5 @@ export {
   getTripsValidator,
   getTripValidator,
   updateTripStatusValidator,
+  getBusesValidator,
 };
