@@ -14,6 +14,7 @@ import {
   createScheduleValidator,
   deleteRouteValidator,
   getBusesValidator,
+  getBusValidator,
   getTripsValidator,
   getTripValidator,
   startTripValidator,
@@ -99,6 +100,32 @@ export interface GetBusesOutputDataPropertyInterface {
     scheduleId: string | null;
     origin: string | null;
     destination: string | null;
+  };
+  createdAt: Date;
+}
+
+// type interface declaration of the get bus's data property in the response object's body
+export interface GetBuseOutputDataPropertyInterface {
+  busId: string;
+  busRegistrationNumber: string;
+  busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS';
+  totalSeats: number;
+  busPicture: string;
+  driver: {
+    driverId: string | null;
+    driverFirstName: string | null;
+    driverLastName: string | null;
+    driverEmail: string | null;
+    driverPhoneNumber: string | null;
+    totalTripsCompleted: number;
+  };
+  schedule: {
+    scheduleId: string | null;
+    origin: string | null;
+    destination: string | null;
+    routeId: string | null;
+    estimatedDepertureTime: Date | null;
+    estimatedArrivalTime: Date | null;
   };
   createdAt: Date;
 }
@@ -637,6 +664,104 @@ export class AdminsService {
             };
           }),
         ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //defining a controller function that will retrieve informations related to a bus using the unique identifier
+  async getBusService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBuseOutputDataPropertyInterface;
+  }> {
+    // validate the request parameter
+    const validatedData = getBusValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    try {
+      // check if a bus exists with the provided bus id
+      const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+        where: {
+          id: validatedData.data.busId,
+        },
+      });
+
+      if (!checkBusExists) {
+        throw new NotFoundException({
+          status: 'error',
+          message: 'No bus found with the provided bus id.',
+        });
+      }
+
+      // retrieve the driver from the bus
+      const retrieveDriver: User | null = await this.prisma.user.findUnique({
+        where: {
+          id: checkBusExists.driverId,
+        },
+      });
+
+      // retrieve the schedule and route from the bus
+      const retrievedSchedule: Schedule | null =
+        await this.prisma.schedule.findFirst({
+          where: {
+            busId: checkBusExists.id,
+          },
+        });
+
+      const retrievedRoute: Route | null = await this.prisma.route.findFirst({
+        where: {
+          id: retrievedSchedule?.routeId,
+        },
+      });
+
+      // retrieve the count of trips using the schedule id
+      const tripCountOfDriver: number | null = await this.prisma.trip.count({
+        where: {
+          scheduleId: retrievedSchedule?.id,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Bus data has been fetched.',
+        data: {
+          busId: checkBusExists.id,
+          busRegistrationNumber: checkBusExists.busRegistrationNumber,
+          busType: checkBusExists.busType,
+          totalSeats: checkBusExists.totalSeats,
+          busPicture: checkBusExists.busPicture,
+          driver: {
+            driverId: retrieveDriver?.id ?? null,
+            driverFirstName: retrieveDriver?.firstName ?? null,
+            driverLastName: retrieveDriver?.lastName ?? null,
+            driverEmail: retrieveDriver?.email ?? null,
+            driverPhoneNumber: retrieveDriver?.phoneNumber ?? null,
+            totalTripsCompleted: tripCountOfDriver,
+          },
+          schedule: {
+            scheduleId: retrievedSchedule?.id ?? null,
+            origin: retrievedRoute?.origin ?? null,
+            destination: retrievedRoute?.destination ?? null,
+            routeId: retrievedRoute?.id ?? null,
+            estimatedDepertureTime:
+              retrievedSchedule?.estimatedDepartureTimeDate ?? null,
+            estimatedArrivalTime:
+              retrievedSchedule?.estimatedArrivalTimeDate ?? null,
+          },
+          createdAt: checkBusExists.createdAt,
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({

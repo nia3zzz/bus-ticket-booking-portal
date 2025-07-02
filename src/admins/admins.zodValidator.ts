@@ -238,6 +238,15 @@ const getBusesValidator = z
     },
   );
 
+const getBusValidator = z.object({
+  busId: z
+    .string({
+      required_error: 'Bus id is required.',
+      invalid_type_error: 'Bus id must be a string.',
+    })
+    .length(36, 'Bus id must be 36 characters.'),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -249,4 +258,5 @@ export {
   getTripValidator,
   updateTripStatusValidator,
   getBusesValidator,
+  getBusValidator,
 };
