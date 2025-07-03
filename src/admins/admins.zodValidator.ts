@@ -247,6 +247,77 @@ const getBusValidator = z.object({
     .length(36, 'Bus id must be 36 characters.'),
 });
 
+const updateBusValidator = z.object({
+  busId: z
+    .string({
+      required_error: 'Bus id is required.',
+      invalid_type_error: 'Bus id must be a string.',
+    })
+    .length(36, 'Bus id must be 36 characters.'),
+
+  totalSeats: z.coerce
+    .number({
+      required_error: 'Total seats is required.',
+      invalid_type_error: 'Total seats must be a number.',
+    })
+    .min(33, 'A minimum of 33 seats are supported.')
+    .max(60, 'A maximum of 60 seats are supported.'),
+
+  driverId: z
+    .string({
+      required_error: 'Driver id is required.',
+      invalid_type_error: 'Driver id must be a string.',
+    })
+    .length(36, 'User id must be 36 characters.'),
+
+  busPicture: z
+    .object({
+      originalName: z.string({
+        required_error: 'Image is invalid.',
+        invalid_type_error: 'Image is invalid.',
+      }),
+      encoding: z.string({
+        required_error: 'Image is invalid.',
+        invalid_type_error: 'Image is invalid.',
+      }),
+      busBoyMimeType: z
+        .string({
+          required_error: 'Image is invalid.',
+          invalid_type_error: 'Image is invalid.',
+        })
+        .startsWith('image/', { message: 'Image is invalid.' }),
+      path: z.string({
+        required_error: 'Image is invalid.',
+        invalid_type_error: 'Image is invalid.',
+      }),
+      size: z
+        .number({
+          required_error: 'Image is invalid.',
+          invalid_type_error: 'Image is invalid.',
+        })
+        .max(5 * 1024 * 1024, {
+          message: 'Image can not be more than 5 megabites.',
+        }),
+      fileType: z.object({
+        ext: z
+          .string({
+            required_error: 'Image is invalid.',
+            invalid_type_error: 'Image is invalid.',
+          })
+          .refine((val) => ['png', 'jpg', 'jpeg', 'webp'].includes(val), {
+            message: 'Image type is invalid.',
+          }),
+        mime: z
+          .string({
+            required_error: 'Image is invalid.',
+            invalid_type_error: 'Image is invalid.',
+          })
+          .startsWith('image/', { message: 'Image is invalid.' }),
+      }),
+    })
+    .optional(),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -259,4 +330,5 @@ export {
   updateTripStatusValidator,
   getBusesValidator,
   getBusValidator,
+  updateBusValidator,
 };

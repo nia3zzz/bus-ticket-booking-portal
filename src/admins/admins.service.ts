@@ -18,6 +18,7 @@ import {
   getTripsValidator,
   getTripValidator,
   startTripValidator,
+  updateBusValidator,
   updateTripStatusValidator,
 } from './admins.zodValidator';
 import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
@@ -762,6 +763,101 @@ export class AdminsService {
           },
           createdAt: checkBusExists.createdAt,
         },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //defining a controller function that will update informations of a bus found by bus id parameter
+  async updateBusService(requestData: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the data object provided from controller class
+    const validatedData = updateBusValidator.safeParse({
+      busId: requestData.params.busId,
+      totalSeats: requestData.requestBody.totalSeats,
+      driverId: requestData.requestBody.driverId,
+      busPicture: requestData.requestBody.busPicture,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    //  check if a bus exists with the provded bus id
+    const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: validatedData.data.busId,
+      },
+    });
+
+    if (!checkBusExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No bus found with the provided bus id.',
+      });
+    }
+
+    // check if the bus's values are different from provided values
+    if (
+      checkBusExists.totalSeats === validatedData.data.totalSeats &&
+      checkBusExists.driverId === validatedData.data.driverId &&
+      !validatedData.data.busPicture
+    ) {
+      throw new ConflictException({
+        status: 'error',
+        message: 'No changes found for the bus to be updated.',
+      });
+    }
+
+    // check if the driver exists using the driver id
+    const checkDriverExists: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: validatedData.data.driverId,
+      },
+    });
+
+    if (!checkDriverExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No driver found with the provided driver id.',
+      });
+    }
+
+    try {
+      let uploadedImage: uploadedImageInterface | null = null;
+
+      if (validatedData.data.busPicture) {
+        // upload the image to the cloudinary
+        uploadedImage = await cloudinaryConfig.uploader.upload(
+          validatedData.data.busPicture.path,
+        );
+      }
+
+      // update the bus document
+      await this.prisma.bus.update({
+        where: {
+          id: validatedData.data.busId,
+        },
+        data: {
+          totalSeats: validatedData.data.totalSeats,
+          driverId: validatedData.data.driverId,
+          busPicture: uploadedImage?.secure_url ?? checkBusExists.busPicture,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Bus has been updated successfully.',
       };
     } catch (error) {
       throw new InternalServerErrorException({

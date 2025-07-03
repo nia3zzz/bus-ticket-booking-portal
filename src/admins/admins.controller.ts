@@ -25,6 +25,7 @@ import {
   createBusValidator,
   createScheduleValidator,
   startTripValidator,
+  updateBusValidator,
 } from './admins.zodValidator';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
 
@@ -126,6 +127,20 @@ export class AdminsController {
     data: GetBuseOutputDataPropertyInterface;
   }> {
     return this.adminsService.getBusService(params);
+  }
+
+  //defining a controller function that will update informations of a bus found by bus id parameter
+  @Put('/buses/:busId')
+  @UseGuards(AdminsGuard)
+  @FormDataRequest({ storage: FileSystemStoredFile })
+  async updateBus(
+    @Param() params: any,
+    @Body() requestBody: typeof updateBusValidator,
+  ): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.updateBusService({ params, requestBody });
   }
 
   //defining a controller function for the creation of a schedule and map it with route and bus
