@@ -143,6 +143,16 @@ export class AdminsController {
     return this.adminsService.updateBusService({ params, requestBody });
   }
 
+  //defining a controller function that will delete a bus retrieved from provided bus id path parameter
+  @Delete('/buses/:busId')
+  @UseGuards(AdminsGuard)
+  async deleteBus(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.deleteBusService(params);
+  }
+
   //defining a controller function for the creation of a schedule and map it with route and bus
   @Post('/schedules')
   @HttpCode(201)

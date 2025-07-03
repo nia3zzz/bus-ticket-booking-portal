@@ -867,6 +867,76 @@ export class AdminsService {
     }
   }
 
+  //defining a controller function that will delete a bus retrieved from provided bus id path parameter
+  async deleteBusService(params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    //validate the provided request url path parameter
+    const validatedData = getBusValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a bus exists with the provided bus id
+    const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: validatedData.data.busId,
+      },
+    });
+
+    if (!checkBusExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No bus found with the provided bus id.',
+      });
+    }
+
+    try {
+      // delete the schedule associated with the bus
+      const foundSchedule: Schedule | null =
+        await this.prisma.schedule.findFirst({
+          where: {
+            busId: validatedData.data.busId,
+          },
+        });
+
+      await this.prisma.trip.deleteMany({
+        where: {
+          scheduleId: foundSchedule?.id,
+        },
+      });
+
+      await this.prisma.schedule.delete({
+        where: {
+          id: foundSchedule?.id,
+        },
+      });
+
+      // delete the bus after going through all the checks
+      await this.prisma.bus.delete({
+        where: {
+          id: checkBusExists.id,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Bus has been deleted successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
   // defining a controller function for starting a trip with schedule id and sending a success message to the client
   async createScheduleService(
     requestBody: typeof createScheduleValidator,
