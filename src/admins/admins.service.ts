@@ -15,6 +15,7 @@ import {
   deleteRouteValidator,
   getBusesValidator,
   getBusValidator,
+  getSchedulesValidator,
   getTripsValidator,
   getTripValidator,
   startTripValidator,
@@ -128,6 +129,20 @@ export interface GetBuseOutputDataPropertyInterface {
     estimatedDepertureTime: Date | null;
     estimatedArrivalTime: Date | null;
   };
+  createdAt: Date;
+}
+
+// type interface declaration of the get schedules data property in the response body
+export interface GetSchedulesOutputPropertyInterface {
+  scheduleId: string;
+  driverId: string | null;
+  driverFirstName: string | null;
+  busId: string | null;
+  busRegistrationNumber: string | null;
+  busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+  routeId: string | null;
+  origin: string | null;
+  destination: string | null;
   createdAt: Date;
 }
 
@@ -1094,6 +1109,89 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'Trip has been completed successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for retrieving a list of schedules through queries
+  async getSchedulesService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetSchedulesOutputPropertyInterface[];
+  }> {
+    // validate the request queries provided in the url
+    const validatedData = getSchedulesValidator.safeParse(requestQueries);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    try {
+      //build up a filter object and push filters in it
+      let where: any = {};
+
+      if (validatedData.data.driverId) {
+        where.driverId = validatedData.data.driverId;
+      }
+
+      if (validatedData.data.routeId) {
+        where.routeId = validatedData.data.routeId;
+      }
+
+      // retrieve the schedules using the builded up filters
+      const retrievedSchedules: Schedule[] | null =
+        await this.prisma.schedule.findMany({
+          where,
+          take: validatedData.data.limit ?? 10,
+          skip:validatedData.data.skip ?? 0
+        });
+
+      return {
+        status: 'success',
+        message: 'Schedule data has been fetched.',
+        data: await Promise.all(
+          retrievedSchedules.map(async (retrievedSchedule) => {
+            // retireve the bus associated with this schedules
+            const retrievedBus: Bus | null = await this.prisma.bus.findUnique({
+              where: { id: retrievedSchedule.busId },
+            });
+
+            // retrieve the driver associated with this bus
+            const retrievedDriver: User | null =
+              await this.prisma.user.findUnique({
+                where: { id: retrievedBus?.id },
+              });
+
+            // retrieved the route associated with the schedule id
+            const retrievedRoute: Route | null =
+              await this.prisma.route.findUnique({
+                where: { id: retrievedSchedule.routeId },
+              });
+
+            return {
+              scheduleId: retrievedSchedule.id,
+              driverId: retrievedDriver?.id ?? null,
+              driverFirstName: retrievedDriver?.firstName ?? null,
+              busId: retrievedBus?.id ?? null,
+              busRegistrationNumber:
+                retrievedBus?.busRegistrationNumber ?? null,
+              busType: retrievedBus?.busType ?? null,
+              routeId: retrievedRoute?.id ?? null,
+              origin: retrievedRoute?.origin ?? null,
+              destination: retrievedRoute?.destination ?? null,
+              createdAt: retrievedSchedule.createdAt,
+            };
+          }),
+        ),
       };
     } catch (error) {
       throw new InternalServerErrorException({

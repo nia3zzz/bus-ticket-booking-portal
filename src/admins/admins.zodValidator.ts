@@ -318,6 +318,32 @@ const updateBusValidator = z.object({
     .optional(),
 });
 
+const getSchedulesValidator = z.object({
+  driverId: z
+    .string({
+      invalid_type_error: 'Driver id must be a string.',
+    })
+    .length(36, 'Driver id must be 36 characters.')
+    .optional(),
+
+  routeId: z
+    .string({
+      invalid_type_error: 'Route id must be a string.',
+    })
+    .length(36, 'Route id must be 36 characters.')
+    .optional(),
+
+  limit: z.coerce
+    .number({ invalid_type_error: 'Limit must be a number' })
+    .nonnegative('Limit can not be negetive.')
+    .optional(),
+
+  skip: z.coerce
+    .number({ invalid_type_error: 'Skip must be a number' })
+    .nonnegative('Skip can not be negetive.')
+    .optional(),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -331,4 +357,5 @@ export {
   getBusesValidator,
   getBusValidator,
   updateBusValidator,
+  getSchedulesValidator,
 };

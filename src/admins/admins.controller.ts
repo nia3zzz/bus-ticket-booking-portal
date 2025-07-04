@@ -16,6 +16,7 @@ import {
   GetBusesOutputDataPropertyInterface,
   GetDriversOutputDataPropertyInterface,
   GetRoutesOutputDataPropertyInterface,
+  GetSchedulesOutputPropertyInterface,
   GetTripOutputDataPropertyInterface,
   GetTripsOutputDataPropertyInterface,
 } from './admins.service';
@@ -161,6 +162,17 @@ export class AdminsController {
     @Body() requestBody: typeof createScheduleValidator,
   ): Promise<{ status: String; message: string }> {
     return this.adminsService.createScheduleService(requestBody);
+  }
+
+  // defining a controller function for retrieving a list of schedules through queries
+  @Get('/schedules')
+  @UseGuards(AdminsGuard)
+  async getSchedules(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetSchedulesOutputPropertyInterface[];
+  }> {
+    return this.adminsService.getSchedulesService(requestQueries);
   }
 
   // defining a controller function for starting a trip with schedule id and sending a success message to the client
