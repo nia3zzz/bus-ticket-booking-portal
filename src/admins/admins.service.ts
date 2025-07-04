@@ -987,9 +987,17 @@ export class AdminsService {
     const checkScheduleExists: Schedule | null =
       await this.prisma.schedule.findFirst({
         where: {
-          OR: [
+          AND: [
             { busId: validatedData.data.busId },
             { routeId: validatedData.data.routeId },
+            {
+              estimatedArrivalTimeDate:
+                validatedData.data.estimatedArrivalTimeDate,
+            },
+            {
+              estimatedDepartureTimeDate:
+                validatedData.data.estimatedDeaurtureTimeDate,
+            },
           ],
         },
       });
