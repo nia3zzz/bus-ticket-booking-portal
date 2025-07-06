@@ -146,6 +146,33 @@ export interface GetSchedulesOutputPropertyInterface {
   createdAt: Date;
 }
 
+// type interface declaration of the get schedule's data property in the response body
+export interface GetScheduleOutputPropertyInterface {
+  scheduleId: string;
+  driver: {
+    driverId: string | null;
+    driverFirstName: string | null;
+    driverLastName: string | null;
+    driverEmail: string | null;
+    driverPhoneNumber: string | null;
+    driverProfilePicture: string | null;
+  };
+  bus: {
+    busId: string | null;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+    busRegistrationNumber: string | null;
+    busPicture: string | null;
+  };
+  route: {
+    routeId: string | null;
+    origin: string | null;
+    destination: string | null;
+  };
+  estimatedDepurtureTimeDate: Date;
+  estimatedArrivalTimeDate: Date;
+  createdAt: Date;
+}
+
 @Injectable()
 export class AdminsService {
   constructor(private prisma: PrismaService) {}
@@ -1152,7 +1179,7 @@ export class AdminsService {
         await this.prisma.schedule.findMany({
           where,
           take: validatedData.data.limit ?? 10,
-          skip:validatedData.data.skip ?? 0
+          skip: validatedData.data.skip ?? 0,
         });
 
       return {
@@ -1192,6 +1219,96 @@ export class AdminsService {
             };
           }),
         ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for retrieveing information related of a schedule through it's id
+  async getScheduleService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetScheduleOutputPropertyInterface;
+  }> {
+    // validate the provided url parameter, using the start trip validator instead of creating a new one because both will be having th same property and error message for client
+    const validatedData = startTripValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a schedule exists in the database using the provided url parameter
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedData.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No schedule was found with the provided schedule id.',
+      });
+    }
+    try {
+      // retrieve the bus, driver and route from the found schedule
+      const foundBus: Bus | null = await this.prisma.bus.findUnique({
+        where: {
+          id: checkScheduleExists.busId,
+        },
+      });
+
+      const foundDriver: User | null = await this.prisma.user.findUnique({
+        where: {
+          id: foundBus?.driverId,
+        },
+      });
+
+      const foundRoute: Route | null = await this.prisma.route.findUnique({
+        where: {
+          id: checkScheduleExists.routeId,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Schedule data has been fetched.',
+        data: {
+          scheduleId: checkScheduleExists.id,
+          driver: {
+            driverId: foundDriver?.id ?? null,
+            driverFirstName: foundDriver?.firstName ?? null,
+            driverLastName: foundDriver?.lastName ?? null,
+            driverEmail: foundDriver?.email ?? null,
+            driverPhoneNumber: foundDriver?.phoneNumber ?? null,
+            driverProfilePicture: foundDriver?.profilePicture ?? null,
+          },
+          bus: {
+            busId: foundBus?.id ?? null,
+            busType: foundBus?.busType ?? null,
+            busRegistrationNumber: foundBus?.busRegistrationNumber ?? null,
+            busPicture: foundBus?.busPicture ?? null,
+          },
+          route: {
+            routeId: foundRoute?.id ?? null,
+            origin: foundRoute?.origin ?? null,
+            destination: foundRoute?.destination ?? null,
+          },
+          estimatedDepurtureTimeDate:
+            checkScheduleExists.estimatedDepartureTimeDate,
+          estimatedArrivalTimeDate:
+            checkScheduleExists.estimatedArrivalTimeDate,
+          createdAt: checkScheduleExists.createdAt,
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({
