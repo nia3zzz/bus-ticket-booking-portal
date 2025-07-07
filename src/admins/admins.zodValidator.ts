@@ -128,7 +128,7 @@ const createScheduleValidator = z.object({
     invalid_type_error: 'Route id must be a string.',
   }),
 
-  estimatedDeaurtureTimeDate: z.coerce.date({
+  estimatedDepartureTimeDate: z.coerce.date({
     required_error: 'Estimated departure time date is required.',
     invalid_type_error: 'Estimated departure time date must be a date.',
   }),
@@ -344,6 +344,37 @@ const getSchedulesValidator = z.object({
     .optional(),
 });
 
+const updateScheduleValidator = z.object({
+  scheduleId: z
+    .string({
+      required_error: 'Schedule id is required.',
+      invalid_type_error: 'Schedule id must be a string.',
+    })
+    .length(36, 'Schedule id must be 36 characters.'),
+
+  busId: z
+    .string({
+      required_error: 'Bus id is required.',
+      invalid_type_error: 'Bus id must be a string.',
+    })
+    .length(36, 'Bus id must be 36 characters.'),
+
+  routeId: z.string({
+    required_error: 'Route id is required.',
+    invalid_type_error: 'Route id must be a string.',
+  }),
+
+  estimatedDepartureTimeDate: z.coerce.date({
+    required_error: 'Estimated departure time date is required.',
+    invalid_type_error: 'Estimated departure time date must be a date.',
+  }),
+
+  estimatedArrivalTimeDate: z.coerce.date({
+    required_error: 'Estimated arrival time data is required.',
+    invalid_type_error: 'Estimated arrival time date must be a date.',
+  }),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -358,4 +389,5 @@ export {
   getBusValidator,
   updateBusValidator,
   getSchedulesValidator,
+  updateScheduleValidator,
 };

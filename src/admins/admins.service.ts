@@ -20,6 +20,7 @@ import {
   getTripValidator,
   startTripValidator,
   updateBusValidator,
+  updateScheduleValidator,
   updateTripStatusValidator,
 } from './admins.zodValidator';
 import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
@@ -168,7 +169,7 @@ export interface GetScheduleOutputPropertyInterface {
     origin: string | null;
     destination: string | null;
   };
-  estimatedDepurtureTimeDate: Date;
+  estimatedDepartureTimeDate: Date;
   estimatedArrivalTimeDate: Date;
   createdAt: Date;
 }
@@ -1038,7 +1039,7 @@ export class AdminsService {
             },
             {
               estimatedDepartureTimeDate:
-                validatedData.data.estimatedDeaurtureTimeDate,
+                validatedData.data.estimatedDepartureTimeDate,
             },
           ],
         },
@@ -1058,7 +1059,7 @@ export class AdminsService {
           routeId: checkRouteExists.id,
           busId: checkBusExists.id,
           estimatedDepartureTimeDate:
-            validatedData.data.estimatedDeaurtureTimeDate,
+            validatedData.data.estimatedDepartureTimeDate,
           estimatedArrivalTimeDate: validatedData.data.estimatedArrivalTimeDate,
         },
       });
@@ -1303,12 +1304,118 @@ export class AdminsService {
             origin: foundRoute?.origin ?? null,
             destination: foundRoute?.destination ?? null,
           },
-          estimatedDepurtureTimeDate:
+          estimatedDepartureTimeDate:
             checkScheduleExists.estimatedDepartureTimeDate,
           estimatedArrivalTimeDate:
             checkScheduleExists.estimatedArrivalTimeDate,
           createdAt: checkScheduleExists.createdAt,
         },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  async updateScheduleService(requestData: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the request body that had came from the client
+    const validatedData = updateScheduleValidator.safeParse({
+      scheduleId: requestData.params.scheduleId,
+      busId: requestData.requestBody.busId,
+      routeId: requestData.requestBody.routeId,
+      estimatedDepartureTimeDate:
+        requestData.requestBody.estimatedDepartureTimeDate,
+      estimatedArrivalTimeDate:
+        requestData.requestBody.estimatedArrivalTimeDate,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if the schedule exists
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedData.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No schedule was found with the provided schedule id.',
+      });
+    }
+
+    // check if the provided data is same as the already saved data
+    if (
+      checkScheduleExists.busId === validatedData.data.busId &&
+      checkScheduleExists.routeId === validatedData.data.routeId &&
+      new Date(checkScheduleExists.estimatedDepartureTimeDate).getTime() ===
+        new Date(validatedData.data.estimatedDepartureTimeDate).getTime() &&
+      new Date(checkScheduleExists.estimatedArrivalTimeDate).getTime() ===
+        new Date(validatedData.data.estimatedArrivalTimeDate).getTime()
+    ) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'No changes found to update the schedule.',
+      });
+    }
+
+    // check if the foreign keys provided for mapping them in database are infact valid to use
+    const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: validatedData.data.busId,
+      },
+    });
+
+    if (!checkBusExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No bus was found with the provided bus id.',
+      });
+    }
+
+    const checkRouteExists: Route | null = await this.prisma.route.findUnique({
+      where: {
+        id: validatedData.data.routeId,
+      },
+    });
+
+    if (!checkRouteExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No route was found with the provided route id.',
+      });
+    }
+    try {
+      // update the schedule document
+      await this.prisma.schedule.update({
+        where: {
+          id: checkScheduleExists.id,
+        },
+        data: {
+          busId: validatedData.data.busId,
+          routeId: validatedData.data.routeId,
+          estimatedDepartureTimeDate:
+            validatedData.data.estimatedDepartureTimeDate,
+          estimatedArrivalTimeDate: validatedData.data.estimatedArrivalTimeDate,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Schedule has been updated successfully.',
       };
     } catch (error) {
       throw new InternalServerErrorException({
