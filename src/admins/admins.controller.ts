@@ -201,6 +201,16 @@ export class AdminsController {
     return this.adminsService.updateScheduleService({ params, requestBody });
   }
 
+  //definig a controller function for deleting an existing schedule using the schedule id
+  @Delete('/schedules/:scheduleId')
+  @UseGuards(AdminsGuard)
+  async deleteSchedule(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return this.adminsService.deleteScheduleService(params);
+  }
+
   // defining a controller function for starting a trip with schedule id and sending a success message to the client
   @Post('/trips')
   @HttpCode(201)

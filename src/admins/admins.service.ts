@@ -1319,6 +1319,7 @@ export class AdminsService {
     }
   }
 
+  // defining a controller function for updating data fields of a schedule through it's id
   async updateScheduleService(requestData: any): Promise<{
     status: string;
     message: string;
@@ -1416,6 +1417,56 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'Schedule has been updated successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //definig a controller function for deleting an existing schedule using the schedule id
+  async deleteScheduleService(params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the provided url parameter, using the start trip validator instead of creating a new one because both will be having th same property and error message for client
+    const validatedData = startTripValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a schedule exists with the provided schedule id
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedData.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No schedule found with provided schedule id.',
+      });
+    }
+
+    try {
+      await this.prisma.schedule.delete({
+        where: {
+          id: checkScheduleExists.id,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Schedule has been deleted successfully.',
       };
     } catch (error) {
       throw new InternalServerErrorException({
