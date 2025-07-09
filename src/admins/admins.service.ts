@@ -26,6 +26,7 @@ import {
 import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { BusTypes } from '@prisma/client';
+import { JsonValue } from '@prisma/client/runtime/library';
 
 // type interface declaration for the reponse body's data propery on the get driver service
 export interface GetDriversOutputDataPropertyInterface {
@@ -108,11 +109,13 @@ export interface GetBusesOutputDataPropertyInterface {
 }
 
 // type interface declaration of the get bus's data property in the response object's body
-export interface GetBuseOutputDataPropertyInterface {
+export interface GetBusOutputDataPropertyInterface {
   busId: string;
   busRegistrationNumber: string;
   busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS';
-  totalSeats: number;
+  seats: JsonValue;
+  class: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS';
+  farePerTicket: number;
   busPicture: string;
   driver: {
     driverId: string | null;
@@ -173,6 +176,169 @@ export interface GetScheduleOutputPropertyInterface {
   estimatedArrivalTimeDate: Date;
   createdAt: Date;
 }
+
+// declaraing a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
+const NONE_AC_BUS_ECONOMY_CLASS_SEATS: { [key: number]: string } = {
+  1: '1A',
+  2: '1B',
+  3: '1C',
+  4: '1D',
+  5: '2A',
+  6: '2B',
+  7: '2C',
+  8: '2D',
+  9: '3A',
+  10: '3B',
+  11: '3C',
+  12: '3D',
+  13: '4A',
+  14: '4B',
+  15: '4C',
+  16: '4D',
+  17: '5A',
+  18: '5B',
+  19: '5C',
+  20: '5D',
+  21: '6A',
+  22: '6B',
+  23: '6C',
+  24: '6D',
+  25: '7A',
+  26: '7B',
+  27: '7C',
+  28: '7D',
+  29: '8A',
+  30: '8B',
+  31: '8C',
+  32: '8D',
+  33: '9A',
+  34: '9B',
+  35: '9C',
+  36: '9D',
+  37: '10A',
+  38: '10B',
+  39: '10C',
+  40: '10D',
+  41: '11A',
+  42: '11B',
+  43: '11C',
+  44: '11D',
+  45: '12A',
+  46: '12B',
+  47: '12C',
+  48: '12D',
+  49: '13A',
+  50: '13B',
+  51: '13C',
+  52: '13D',
+  53: '14A',
+  54: '14B',
+  55: '14C',
+  56: '14D',
+  57: '15A',
+  58: '15B',
+  59: '15C',
+  60: '15D',
+};
+
+const AC_BUS_BUSINESS_CLASS_SEATS: { [key: number]: string } = {
+  1: '1A',
+  2: '1B',
+  3: '1C',
+  4: '2A',
+  5: '2B',
+  6: '2C',
+  7: '3A',
+  8: '3B',
+  9: '3C',
+  10: '4A',
+  11: '4B',
+  12: '4C',
+  13: '5A',
+  14: '5B',
+  15: '5C',
+  16: '6A',
+  17: '6B',
+  18: '6C',
+  19: '7A',
+  20: '7B',
+  21: '7C',
+  22: '8A',
+  23: '8B',
+  24: '8C',
+  25: '9A',
+  26: '9B',
+  27: '9C',
+  28: '10A',
+  29: '10B',
+  30: '10C',
+  31: '11A',
+  32: '11B',
+  33: '11C',
+  34: '12A',
+  35: '12B',
+  36: '12C',
+  37: '13A',
+  38: '13B',
+  39: '13C',
+  40: '14A',
+};
+
+const AC_BUS_FIRST_CLASS_SEATS: { [key: number]: string } = {
+  1: '1A',
+  2: '1B',
+  3: '2A',
+  4: '2B',
+  5: '3A',
+  6: '3B',
+  7: '4A',
+  8: '4B',
+  9: '5A',
+  10: '5B',
+  11: '6A',
+  12: '6B',
+  13: '7A',
+  14: '7B',
+  15: '8A',
+  16: '8B',
+  17: '9A',
+  18: '9B',
+  19: '10A',
+  20: '10B',
+  21: '11A',
+  22: '11B',
+  23: '12A',
+  24: '12B',
+  25: '13A',
+  26: '13B',
+  27: '14A',
+  28: '14B',
+  29: '15A',
+  30: '15B',
+};
+
+const SLEEPER_BUS_FIRST_CLASS_SEATS: { [key: number]: string } = {
+  1: '1A',
+  2: '1B',
+  3: '2A',
+  4: '2B',
+  5: '3A',
+  6: '3B',
+  7: '4A',
+  8: '4B',
+  9: '5A',
+  10: '5B',
+  11: '6A',
+  12: '6B',
+  13: '7A',
+  14: '7B',
+  15: '8A',
+  16: '8B',
+  17: '9A',
+  18: '9B',
+  19: '10A',
+  20: '10B',
+};
 
 @Injectable()
 export class AdminsService {
@@ -600,12 +766,38 @@ export class AdminsService {
           validatedData.data.busPicture.path,
         );
 
+      let seats: { [key: number]: string } = {};
+
+      if (
+        validatedData.data.busType === 'NONE_AC_BUS' &&
+        validatedData.data.class === 'ECONOMY'
+      ) {
+        seats = NONE_AC_BUS_ECONOMY_CLASS_SEATS;
+      } else if (
+        validatedData.data.busType === 'NONE_AC_BUS' &&
+        validatedData.data.class === 'BUSINESS'
+      ) {
+        seats = AC_BUS_BUSINESS_CLASS_SEATS;
+      } else if (
+        validatedData.data.busType === 'AC_BUS' &&
+        validatedData.data.class === 'FIRSTCLASS'
+      ) {
+        seats = AC_BUS_FIRST_CLASS_SEATS;
+      } else if (
+        validatedData.data.busType === 'SLEEPER_BUS' &&
+        validatedData.data.class === 'FIRSTCLASS'
+      ) {
+        seats = SLEEPER_BUS_FIRST_CLASS_SEATS;
+      }
+
       // save the bus now in the database
       await this.prisma.bus.create({
         data: {
           busRegistrationNumber: validatedData.data.busRegistrationNumber,
           busType: validatedData.data.busType,
-          totalSeats: validatedData.data.totalSeats,
+          seats: seats,
+          class: validatedData.data.class,
+          farePerTicket: validatedData.data.farePerTicket,
           driverId: validatedData.data.driverId,
           busPicture: uploadedImage.secure_url,
         },
@@ -648,16 +840,6 @@ export class AdminsService {
         where.busType = { equals: validatedData.data.busType as BusTypes };
       }
 
-      if (validatedData.data.minSeats || validatedData.data.maxSeats) {
-        where.totalSeats = {};
-        if (validatedData.data.minSeats) {
-          where.totalSeats.gte = validatedData.data.minSeats;
-        }
-        if (validatedData.data.maxSeats) {
-          where.totalSeats.lte = validatedData.data.maxSeats;
-        }
-      }
-
       // retrieve all the buses using the potential provided filter
       const retrievedBussesFound = await this.prisma.bus.findMany({
         where,
@@ -696,7 +878,7 @@ export class AdminsService {
               busId: retrievedBus.id,
               busRegistrationNumber: retrievedBus.busRegistrationNumber,
               busType: retrievedBus.busType,
-              totalSeats: retrievedBus.totalSeats,
+              class: retrievedBus.class,
               driverId: retrievedDriver?.id ?? null,
               driverFirstName: retrievedDriver?.firstName ?? null,
               schedule: {
@@ -721,7 +903,7 @@ export class AdminsService {
   async getBusService(params: any): Promise<{
     status: string;
     message: string;
-    data: GetBuseOutputDataPropertyInterface;
+    data: GetBusOutputDataPropertyInterface;
   }> {
     // validate the request parameter
     const validatedData = getBusValidator.safeParse(params);
@@ -734,49 +916,49 @@ export class AdminsService {
       });
     }
 
+    // check if a bus exists with the provided bus id
+    const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: validatedData.data.busId,
+      },
+    });
+
+    if (!checkBusExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No bus found with the provided bus id.',
+      });
+    }
+
+    // retrieve the driver from the bus
+    const retrieveDriver: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: checkBusExists.driverId,
+      },
+    });
+
+    // retrieve the schedule and route from the bus
+    const retrievedSchedule: Schedule | null =
+      await this.prisma.schedule.findFirst({
+        where: {
+          busId: checkBusExists.id,
+        },
+      });
+
+    const retrievedRoute: Route | null = await this.prisma.route.findFirst({
+      where: {
+        id: retrievedSchedule?.routeId,
+      },
+    });
+
+    // retrieve the count of trips using the schedule id
+    const tripCountOfDriver: number | null = await this.prisma.trip.count({
+      where: {
+        scheduleId: retrievedSchedule?.id,
+      },
+    });
+
     try {
-      // check if a bus exists with the provided bus id
-      const checkBusExists: Bus | null = await this.prisma.bus.findUnique({
-        where: {
-          id: validatedData.data.busId,
-        },
-      });
-
-      if (!checkBusExists) {
-        throw new NotFoundException({
-          status: 'error',
-          message: 'No bus found with the provided bus id.',
-        });
-      }
-
-      // retrieve the driver from the bus
-      const retrieveDriver: User | null = await this.prisma.user.findUnique({
-        where: {
-          id: checkBusExists.driverId,
-        },
-      });
-
-      // retrieve the schedule and route from the bus
-      const retrievedSchedule: Schedule | null =
-        await this.prisma.schedule.findFirst({
-          where: {
-            busId: checkBusExists.id,
-          },
-        });
-
-      const retrievedRoute: Route | null = await this.prisma.route.findFirst({
-        where: {
-          id: retrievedSchedule?.routeId,
-        },
-      });
-
-      // retrieve the count of trips using the schedule id
-      const tripCountOfDriver: number | null = await this.prisma.trip.count({
-        where: {
-          scheduleId: retrievedSchedule?.id,
-        },
-      });
-
       return {
         status: 'success',
         message: 'Bus data has been fetched.',
@@ -784,7 +966,9 @@ export class AdminsService {
           busId: checkBusExists.id,
           busRegistrationNumber: checkBusExists.busRegistrationNumber,
           busType: checkBusExists.busType,
-          totalSeats: checkBusExists.totalSeats,
+          seats: checkBusExists.seats,
+          class: checkBusExists.class,
+          farePerTicket: checkBusExists.farePerTicket,
           busPicture: checkBusExists.busPicture,
           driver: {
             driverId: retrieveDriver?.id ?? null,
@@ -823,7 +1007,6 @@ export class AdminsService {
     // validate the data object provided from controller class
     const validatedData = updateBusValidator.safeParse({
       busId: requestData.params.busId,
-      totalSeats: requestData.requestBody.totalSeats,
       driverId: requestData.requestBody.driverId,
       busPicture: requestData.requestBody.busPicture,
     });
@@ -852,7 +1035,6 @@ export class AdminsService {
 
     // check if the bus's values are different from provided values
     if (
-      checkBusExists.totalSeats === validatedData.data.totalSeats &&
       checkBusExists.driverId === validatedData.data.driverId &&
       !validatedData.data.busPicture
     ) {
@@ -892,7 +1074,6 @@ export class AdminsService {
           id: validatedData.data.busId,
         },
         data: {
-          totalSeats: validatedData.data.totalSeats,
           driverId: validatedData.data.driverId,
           busPicture: uploadedImage?.secure_url ?? checkBusExists.busPicture,
         },
@@ -955,11 +1136,13 @@ export class AdminsService {
         },
       });
 
-      await this.prisma.schedule.delete({
-        where: {
-          id: foundSchedule?.id,
-        },
-      });
+      if (foundSchedule) {
+        await this.prisma.schedule.delete({
+          where: {
+            id: foundSchedule?.id,
+          },
+        });
+      }
 
       // delete the bus after going through all the checks
       await this.prisma.bus.delete({

@@ -50,6 +50,13 @@ enum TripStatusTypes {
   COMPLETED
 }
 
+//all the multiple class for the bus model's class property that will hold class of bus
+enum BusClassTypes {
+  ECONOMY
+  BUSINESS
+  FIRSTCLASS
+}
+
 // the user model that generates a random uuid as the document's primary key identifier with fields like names, email, phone number, profile picture and their roles
 model User {
   id             String          @id @default(uuid())
@@ -71,15 +78,17 @@ model User {
 
 // the bus model that generates a unique id and holds the information of the bus's registration number, type, total seats, foreign key driver id and picture of the bus
 model Bus {
-  id                    String     @id @default(uuid())
+  id                    String        @id @default(uuid())
   busRegistrationNumber String
   busType               BusTypes
-  totalSeats            Int
-  driver                User       @relation(fields: [driverId], references: [id])
+  seats                 Json
+  class                 BusClassTypes
+  farePerTicket         Int
+  driver                User          @relation(fields: [driverId], references: [id])
   driverId              String
   busPicture            String
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
   Schedule              Schedule[]
 }
 
@@ -138,12 +147,12 @@ model Booking {
 
 // the booking seat models saves the data of the booked seats with columns like the bookingid and seatnumber this model is neccessary for keeping tracks of seat data
 model BookedSeat {
-  id         String   @id @default(uuid())
-  booking    Booking  @relation(fields: [bookingId], references: [id])
-  bookingId  String
-  seatNumber Int[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(uuid())
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  bookingId   String
+  seatNumbers String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // the payment model that is used for saving the payment informations after booking seats

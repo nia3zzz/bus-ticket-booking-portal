@@ -40,80 +40,97 @@ const deleteRouteValidator = z.object({
     .length(36, 'Route id must be 36 characters.'),
 });
 
-const createBusValidator = z.object({
-  busRegistrationNumber: z
-    .string({
-      required_error: 'Bus registration number is required.',
-      invalid_type_error: 'Bus registration number must be a string',
-    })
-    .min(12, 'A minimum of 12 characters are supported.')
-    .max(20, 'A maximum of 20 characters are supported.'),
-
-  busType: z.enum(['AC_BUS', 'NONE_AC_BUS', 'SLEEPER_BUS'], {
-    required_error: 'Bus type is required.',
-    invalid_type_error: 'Bus type must be a string',
-  }),
-
-  totalSeats: z.coerce
-    .number({
-      required_error: 'Total seats is required.',
-      invalid_type_error: 'Total seats must be a number.',
-    })
-    .min(33, 'A minimum of 33 seats are supported.')
-    .max(60, 'A maximum of 60 seats are supported.'),
-
-  driverId: z
-    .string({
-      required_error: 'Driver id is required.',
-      invalid_type_error: 'Driver id must be a string.',
-    })
-    .length(36, 'User id must be 36 characters.'),
-
-  busPicture: z.object({
-    originalName: z.string({
-      required_error: 'Image is invalid.',
-      invalid_type_error: 'Image is invalid.',
-    }),
-    encoding: z.string({
-      required_error: 'Image is invalid.',
-      invalid_type_error: 'Image is invalid.',
-    }),
-    busBoyMimeType: z
+const createBusValidator = z
+  .object({
+    busRegistrationNumber: z
       .string({
-        required_error: 'Image is invalid.',
-        invalid_type_error: 'Image is invalid.',
+        required_error: 'Bus registration number is required.',
+        invalid_type_error: 'Bus registration number must be a string',
       })
-      .startsWith('image/', { message: 'Image is invalid.' }),
-    path: z.string({
-      required_error: 'Image is invalid.',
-      invalid_type_error: 'Image is invalid.',
+      .min(12, 'A minimum of 12 characters are supported.')
+      .max(20, 'A maximum of 20 characters are supported.'),
+
+    busType: z.enum(['AC_BUS', 'NONE_AC_BUS', 'SLEEPER_BUS'], {
+      required_error: 'Bus type is required.',
+      invalid_type_error: 'Bus type must be a string',
     }),
-    size: z
+
+    class: z.enum(['ECONOMY', 'BUSINESS', 'FIRSTCLASS'], {
+      required_error: 'Class is required.',
+      invalid_type_error: 'Class must be a string.',
+    }),
+
+    farePerTicket: z.coerce
       .number({
+        required_error: 'Fare per ticket is required.',
+        invalid_type_error: 'Fare per ticket must be a string.',
+      })
+      .nonnegative('Fare per ticket can not be negative.'),
+
+    driverId: z
+      .string({
+        required_error: 'Driver id is required.',
+        invalid_type_error: 'Driver id must be a string.',
+      })
+      .length(36, 'User id must be 36 characters.'),
+
+    busPicture: z.object({
+      originalName: z.string({
         required_error: 'Image is invalid.',
         invalid_type_error: 'Image is invalid.',
-      })
-      .max(5 * 1024 * 1024, {
-        message: 'Image can not be more than 5 megabites.',
       }),
-    fileType: z.object({
-      ext: z
-        .string({
-          required_error: 'Image is invalid.',
-          invalid_type_error: 'Image is invalid.',
-        })
-        .refine((val) => ['png', 'jpg', 'jpeg', 'webp'].includes(val), {
-          message: 'Image type is invalid.',
-        }),
-      mime: z
+      encoding: z.string({
+        required_error: 'Image is invalid.',
+        invalid_type_error: 'Image is invalid.',
+      }),
+      busBoyMimeType: z
         .string({
           required_error: 'Image is invalid.',
           invalid_type_error: 'Image is invalid.',
         })
         .startsWith('image/', { message: 'Image is invalid.' }),
+      path: z.string({
+        required_error: 'Image is invalid.',
+        invalid_type_error: 'Image is invalid.',
+      }),
+      size: z
+        .number({
+          required_error: 'Image is invalid.',
+          invalid_type_error: 'Image is invalid.',
+        })
+        .max(5 * 1024 * 1024, {
+          message: 'Image can not be more than 5 megabites.',
+        }),
+      fileType: z.object({
+        ext: z
+          .string({
+            required_error: 'Image is invalid.',
+            invalid_type_error: 'Image is invalid.',
+          })
+          .refine((val) => ['png', 'jpg', 'jpeg', 'webp'].includes(val), {
+            message: 'Image type is invalid.',
+          }),
+        mime: z
+          .string({
+            required_error: 'Image is invalid.',
+            invalid_type_error: 'Image is invalid.',
+          })
+          .startsWith('image/', { message: 'Image is invalid.' }),
+      }),
     }),
-  }),
-});
+  })
+  .refine(
+    (data) =>
+      (data.busType === 'NONE_AC_BUS' &&
+        !['BUSINESS', 'FIRSTCLASS'].includes(data.class)) ||
+      (data.busType === 'AC_BUS' && data.class !== 'ECONOMY') ||
+      (data.busType === 'SLEEPER_BUS' &&
+        !['ECONOMY', 'BUSINESS'].includes(data.class)),
+    {
+      message: 'Invalid combination of bus type and class.',
+      path: ['class'],
+    },
+  );
 
 const createScheduleValidator = z.object({
   busId: z
@@ -210,33 +227,13 @@ const updateTripStatusValidator = z.object({
   }),
 });
 
-const getBusesValidator = z
-  .object({
-    busType: z
-      .enum(['AC_BUS', 'NONE_AC_BUS', 'SLEEPER_BUS'], {
-        invalid_type_error: 'Status must be a string.',
-      })
-      .optional(),
-
-    minSeats: z.coerce
-      .number({ invalid_type_error: 'Minimum seats must be a number.' })
-      .min(33, 'A minimum of 33 seats are supported.')
-      .max(60, 'A maximum of 60 seats are supported.')
-      .optional(),
-
-    maxSeats: z.coerce
-      .number({ invalid_type_error: 'Maximum seats must be a number.' })
-      .min(33, 'A minimum of 33 seats are supported.')
-      .max(60, 'A maximum of 60 seats are supported.')
-      .optional(),
-  })
-  .refine(
-    (data) =>
-      !data.minSeats || !data.maxSeats || data.minSeats <= data.maxSeats,
-    {
-      message: 'Minimum seats can not be more than maximum seats.',
-    },
-  );
+const getBusesValidator = z.object({
+  busType: z
+    .enum(['AC_BUS', 'NONE_AC_BUS', 'SLEEPER_BUS'], {
+      invalid_type_error: 'Status must be a string.',
+    })
+    .optional(),
+});
 
 const getBusValidator = z.object({
   busId: z
@@ -254,14 +251,6 @@ const updateBusValidator = z.object({
       invalid_type_error: 'Bus id must be a string.',
     })
     .length(36, 'Bus id must be 36 characters.'),
-
-  totalSeats: z.coerce
-    .number({
-      required_error: 'Total seats is required.',
-      invalid_type_error: 'Total seats must be a number.',
-    })
-    .min(33, 'A minimum of 33 seats are supported.')
-    .max(60, 'A maximum of 60 seats are supported.'),
 
   driverId: z
     .string({

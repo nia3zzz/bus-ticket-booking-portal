@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   AdminsService,
-  GetBuseOutputDataPropertyInterface,
+  GetBusOutputDataPropertyInterface,
   GetBusesOutputDataPropertyInterface,
   GetDriversOutputDataPropertyInterface,
   GetRoutesOutputDataPropertyInterface,
@@ -127,7 +127,7 @@ export class AdminsController {
   async getBus(@Param() params: any): Promise<{
     status: string;
     message: string;
-    data: GetBuseOutputDataPropertyInterface;
+    data: GetBusOutputDataPropertyInterface;
   }> {
     return this.adminsService.getBusService(params);
   }
