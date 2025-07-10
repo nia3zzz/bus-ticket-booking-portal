@@ -131,18 +131,19 @@ model Trip {
 
 // the booking model will hold the information user id, schedule id, total price of the booked seats, status of the booking and more
 model Booking {
-  id         String             @id @default(uuid())
-  user       User               @relation(fields: [userId], references: [id])
-  userId     String
-  schedule   Schedule           @relation(fields: [scheduleId], references: [id])
-  scheduleId String
-  totalPrice Int
-  status     BookingStatusTypes
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  BookedSeat BookedSeat[]
-  Payment    Payment[]
-  Ticket     Ticket[]
+  id          String             @id @default(uuid())
+  user        User               @relation(fields: [userId], references: [id])
+  userId      String
+  schedule    Schedule           @relation(fields: [scheduleId], references: [id])
+  scheduleId  String
+  totalPrice  Int
+  status      BookingStatusTypes
+  journeyDate DateTime
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  BookedSeat  BookedSeat[]
+  Payment     Payment[]
+  Ticket      Ticket[]
 }
 
 // the booking seat models saves the data of the booked seats with columns like the bookingid and seatnumber this model is neccessary for keeping tracks of seat data
