@@ -5,10 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { getBusesValidatorClient } from './buses.zodValidator';
-import { BookedSeat, Booking, Bus, Route, Schedule } from '@prisma/client';
+import {
+  getBusesValidatorClient,
+  getBusValidatorClient,
+} from './buses.zodValidator';
+import {
+  BookedSeat,
+  Booking,
+  Bus,
+  Route,
+  Schedule,
+  User,
+} from '@prisma/client';
+import { JsonValue } from '@prisma/client/runtime/library';
 
-// defining a data type interface for the response body's data property
+// defining a data type interface for the response body's data property of the get buses that accepts query parameter and returns array of the defined type
 export interface GetBusesOutputDataPropertyClientInterface {
   busId: string | null;
   busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
@@ -18,10 +29,43 @@ export interface GetBusesOutputDataPropertyClientInterface {
   ticketsLeft: number;
 }
 
+// defining a data type interface for the response body's data property of the get bus that accepts query parameters and returns data of this type
+export interface GetBusOutputDataPropertyClientInterface {
+  busId: string | null;
+  busRegistrationNumber: string | null;
+  busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+  seats: JsonValue | null;
+  busClass: 'BUSINESS' | 'ECONOMY' | 'FIRSTCLASS' | null;
+  farePerTicket: number | null;
+  driver: {
+    driverId: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    profilePicture: string | null;
+  };
+  schedule: {
+    scheduleId: string;
+    estimatedepartureTimeDate: Date;
+    estimatedArrivalTimeDate: Date;
+  };
+  route: {
+    routeId: string | null;
+    origin: string | null;
+    destination: string | null;
+    distanceinKm: number | null;
+    estimatedTimeInMIn: number | null;
+  };
+  bookedSeats: string[] | null;
+  busPicture: string | null;
+  createdAt: Date | null;
+}
+
 @Injectable()
 export class BusesService {
   constructor(private prisma: PrismaService) {}
 
+  // defining a controller function for retriving a list of buses based on provided client side queries
   async getBusesService(requestQueries: any): Promise<{
     status: string;
     message: string;
@@ -134,6 +178,126 @@ export class BusesService {
             };
           }),
         ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function for retriving all the informations that is related to the schedule and journey date from the client
+  async getBusServiceBus(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBusOutputDataPropertyClientInterface;
+  }> {
+    // validate the request requeries recieved from the client
+    const validatedData = getBusValidatorClient.safeParse(requestQueries);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a schedule exists with the provided schedule id query
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedData.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No schedule found with provided schedule id.',
+      });
+    }
+
+    try {
+      // retrieve the bus from the found schedule
+      const foundBus: Bus | null = await this.prisma.bus.findUnique({
+        where: {
+          id: checkScheduleExists.busId,
+        },
+      });
+
+      // retrieve the driver from the found bus
+      const foundDriver: User | null = await this.prisma.user.findUnique({
+        where: {
+          id: foundBus?.driverId,
+        },
+      });
+
+      //retrieve the route from the found schedule
+      const foundRoute: Route | null = await this.prisma.route.findUnique({
+        where: {
+          id: checkScheduleExists.routeId,
+        },
+      });
+
+      // retrieve all the booking informations that is related with the schedule id and journey date
+      const retrievedBookingFound: Booking | null =
+        await this.prisma.booking.findFirst({
+          where: {
+            scheduleId: checkScheduleExists.id,
+          },
+        });
+
+      // retrieve all the booked seats of using that booking id
+      const retrievedBookedSeats: BookedSeat[] | null =
+        await this.prisma.bookedSeat.findMany({
+          where: {
+            bookingId: retrievedBookingFound?.id,
+          },
+        });
+
+      const bookedSeats: string[] | [] = retrievedBookedSeats.flatMap(
+        (retrievedBookedSeat) => {
+          return retrievedBookedSeat.seatNumbers;
+        },
+      );
+
+      return {
+        status: 'success',
+        message: 'Bus data has been fetched.',
+        data: {
+          busId: foundBus?.id ?? null,
+          busRegistrationNumber: foundBus?.busRegistrationNumber ?? null,
+          busType: foundBus?.busType ?? null,
+          seats: foundBus?.seats ?? null,
+          busClass: foundBus?.class ?? null,
+          farePerTicket: foundBus?.farePerTicket ?? null,
+          driver: {
+            driverId: foundDriver?.id ?? null,
+            firstName: foundDriver?.firstName ?? null,
+            lastName: foundDriver?.lastName ?? null,
+            email: foundDriver?.email ?? null,
+            profilePicture: foundDriver?.profilePicture ?? null,
+          },
+          schedule: {
+            scheduleId: checkScheduleExists.id,
+            estimatedepartureTimeDate:
+              checkScheduleExists.estimatedDepartureTimeDate,
+            estimatedArrivalTimeDate:
+              checkScheduleExists.estimatedArrivalTimeDate,
+          },
+          route: {
+            routeId: foundRoute?.id ?? null,
+            origin: foundRoute?.origin ?? null,
+            destination: foundRoute?.destination ?? null,
+            distanceinKm: foundRoute?.distanceInKm ?? null,
+            estimatedTimeInMIn: foundRoute?.estimatedTimeInMin ?? null,
+          },
+          bookedSeats: bookedSeats,
+          busPicture: foundBus?.busPicture ?? null,
+          createdAt: foundBus?.createdAt ?? null,
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({
