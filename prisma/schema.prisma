@@ -151,7 +151,7 @@ model BookedSeat {
   id          String   @id @default(uuid())
   booking     Booking  @relation(fields: [bookingId], references: [id])
   bookingId   String
-  seatNumbers String[]
+  seatNumbers Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

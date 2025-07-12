@@ -56,7 +56,7 @@ export interface GetBusOutputDataPropertyClientInterface {
     distanceinKm: number | null;
     estimatedTimeInMIn: number | null;
   };
-  bookedSeats: string[] | null;
+  bookedSeats: JsonValue[] | null;
   busPicture: string | null;
   createdAt: Date | null;
 }
@@ -161,7 +161,7 @@ export class BusesService {
 
             // if a seat is booked there would be values in this array
             retrievedBookedSeats.map((bookedSeat) => {
-              bookedSeatsCount = bookedSeat?.seatNumbers.length;
+              bookedSeatsCount = Object.keys(bookedSeat?.seatNumbers ?? '').length;
             });
 
             // count all the available seats of that bus
@@ -257,7 +257,7 @@ export class BusesService {
           },
         });
 
-      const bookedSeats: string[] | [] = retrievedBookedSeats.flatMap(
+      const bookedSeats: JsonValue[] | [] = retrievedBookedSeats.map(
         (retrievedBookedSeat) => {
           return retrievedBookedSeat.seatNumbers;
         },
