@@ -143,25 +143,30 @@ export class BusesService {
               });
 
             // retrieve the remaining seats from each of the bus
-            const retrievedBookingFound: Booking | null =
-              await this.prisma.booking.findFirst({
+            const retrievedBookingsFound: Booking[] | null =
+              await this.prisma.booking.findMany({
                 where: {
                   scheduleId: retrievedSchedule?.id,
                 },
               });
 
             // retrieve all the booked seats of using that booking id
-            const retrievedBookedSeats: BookedSeat[] | null =
-              await this.prisma.bookedSeat.findMany({
-                where: { bookingId: retrievedBookingFound?.id },
-              });
+            const retrievedBookedSeats: BookedSeat[][] = await Promise.all(
+              retrievedBookingsFound.map(async (booking) => {
+                return await this.prisma.bookedSeat.findMany({
+                  where: { bookingId: booking?.id },
+                });
+              }),
+            );
 
             // varaible for counting the booked seats
             let bookedSeatsCount: number = 0;
 
             // if a seat is booked there would be values in this array
-            retrievedBookedSeats.map((bookedSeat) => {
-              bookedSeatsCount = Object.keys(bookedSeat?.seatNumbers ?? '').length;
+            retrievedBookedSeats.flat().map((bookedSeat) => {
+              bookedSeatsCount = Object.keys(
+                bookedSeat?.seatNumbers ?? '',
+              ).length;
             });
 
             // count all the available seats of that bus
@@ -242,26 +247,30 @@ export class BusesService {
       });
 
       // retrieve all the booking informations that is related with the schedule id and journey date
-      const retrievedBookingFound: Booking | null =
-        await this.prisma.booking.findFirst({
+      const retrievedBookingsFound: Booking[] | null =
+        await this.prisma.booking.findMany({
           where: {
             scheduleId: checkScheduleExists.id,
+            journeyDate: validatedData.data.journeyDate,
           },
         });
 
       // retrieve all the booked seats of using that booking id
-      const retrievedBookedSeats: BookedSeat[] | null =
-        await this.prisma.bookedSeat.findMany({
-          where: {
-            bookingId: retrievedBookingFound?.id,
-          },
-        });
-
-      const bookedSeats: JsonValue[] | [] = retrievedBookedSeats.map(
-        (retrievedBookedSeat) => {
-          return retrievedBookedSeat.seatNumbers;
-        },
+      const retrievedBookedSeats: BookedSeat[][] = await Promise.all(
+        retrievedBookingsFound.map(async (booking) => {
+          return await this.prisma.bookedSeat.findMany({
+            where: {
+              bookingId: booking.id,
+            },
+          });
+        }),
       );
+
+      const bookedSeats: JsonValue[] | [] = retrievedBookedSeats
+        .flat()
+        .map((retrievedBookedSeat) => {
+          return retrievedBookedSeat.seatNumbers;
+        });
 
       return {
         status: 'success',
