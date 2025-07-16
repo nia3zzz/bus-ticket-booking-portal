@@ -18,10 +18,20 @@ import {
 import { customExpressInterface } from 'src/users/users.guard';
 import { SendMailToProvidePaymentInvoiceAfterBookingSeats } from 'src/nodemailerMailFunctions';
 
+// type interface declaration of the get bookings data property in the response body
+export interface GetBookingsOutputPropertyInterface {
+  bookingId: string;
+  origin: string | null;
+  destination: string | null;
+  estimatedDepertureTimeDate: Date | null;
+  totalSeats: number;
+}
+
 @Injectable()
 export class BookingsService {
   constructor(private prisma: PrismaService) {}
 
+  // this controller function for bookings route will book a user's selected tickets on their selected bus
   async createBookingService(
     request: customExpressInterface,
     requestBody: typeof createBookingValidator,
@@ -182,6 +192,74 @@ export class BookingsService {
         status: 'success',
         message:
           'Your selected seats has been booked, please check your email for booking details.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //this controller function for bookings will retrieve all the booked seats made by the user
+  async getBookingsService(request: customExpressInterface): Promise<{
+    status: string;
+    message: string;
+    data: GetBookingsOutputPropertyInterface[];
+  }> {
+    try {
+      // retrieve the user's bookings using their id
+      const foundBookings: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            userId: request.foundExistingUser.id,
+          },
+        });
+
+      return {
+        status: 'success',
+        message: 'Bookings has been fetched successfully.',
+        data: await Promise.all(
+          foundBookings.map(async (booking) => {
+            // retrieve the booke seats using the booking id
+            const foundBookedSeats: BookedSeat | null =
+              await this.prisma.bookedSeat.findFirst({
+                where: {
+                  bookingId: booking.id,
+                },
+              });
+
+            //set the type for the seats as its set as a jsonvalue that could of any type
+            const bookedSeatObj = foundBookedSeats?.seatNumbers as [
+              string,
+              string,
+            ][];
+
+            // retrieve all the schedule from the booking
+            const foundSchedule: Schedule | null =
+              await this.prisma.schedule.findUnique({
+                where: { id: booking.scheduleId },
+              });
+
+            // retrieve the route from the found schedule document
+            const foundRoute: Route | null = await this.prisma.route.findUnique(
+              {
+                where: {
+                  id: foundSchedule?.routeId,
+                },
+              },
+            );
+
+            return {
+              bookingId: booking.id,
+              origin: foundRoute?.origin ?? null,
+              destination: foundRoute?.destination ?? null,
+              estimatedDepertureTimeDate:
+                foundSchedule?.estimatedDepartureTimeDate ?? null,
+              totalSeats: bookedSeatObj.length ?? 0,
+            };
+          }),
+        ),
       };
     } catch (error) {
       throw new InternalServerErrorException({

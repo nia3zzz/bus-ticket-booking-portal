@@ -1,5 +1,15 @@
-import { Body, Controller, Post, Request, UseGuards } from '@nestjs/common';
-import { BookingsService } from './bookings.service';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  BookingsService,
+  GetBookingsOutputPropertyInterface,
+} from './bookings.service';
 import { AuthGuard, customExpressInterface } from 'src/users/users.guard';
 import { createBookingValidator } from './bookings.zodValidator';
 
@@ -7,6 +17,7 @@ import { createBookingValidator } from './bookings.zodValidator';
 export class BookingsController {
   constructor(private bookingsService: BookingsService) {}
 
+  // this controller function for bookings route will book a user's selected tickets on their selected bus
   @Post('/bookings')
   @UseGuards(AuthGuard)
   async createBooking(
@@ -17,5 +28,16 @@ export class BookingsController {
     message: string;
   }> {
     return this.bookingsService.createBookingService(request, requestBody);
+  }
+
+  //this controller function for bookings will retrieve all the booked seats made by the user
+  @Get('/bookings')
+  @UseGuards(AuthGuard)
+  async getBookings(@Request() request: customExpressInterface): Promise<{
+    status: string;
+    message: string;
+    data: GetBookingsOutputPropertyInterface[];
+  }> {
+    return this.bookingsService.getBookingsService(request);
   }
 }
