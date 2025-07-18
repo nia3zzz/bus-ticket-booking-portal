@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import {
   BookingsService,
+  GetBookingOutputPropertyInterface,
   GetBookingsOutputPropertyInterface,
 } from './bookings.service';
 import { AuthGuard, customExpressInterface } from 'src/users/users.guard';
@@ -39,5 +41,16 @@ export class BookingsController {
     data: GetBookingsOutputPropertyInterface[];
   }> {
     return this.bookingsService.getBookingsService(request);
+  }
+
+  // this controller function for bookings will retrieve a unique booking of the user using the booking id provided by the user
+  @Get('/bookings/:bookingId')
+  @UseGuards(AuthGuard)
+  async getBooking(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBookingOutputPropertyInterface;
+  }> {
+    return this.bookingsService.getBookingService(params);
   }
 }

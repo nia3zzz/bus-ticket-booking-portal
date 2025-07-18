@@ -1,4 +1,4 @@
-import { number, z } from 'zod';
+import { z } from 'zod';
 
 const createBookingValidator = z.object({
   scheduleId: z
@@ -23,4 +23,13 @@ const createBookingValidator = z.object({
   ),
 });
 
-export { createBookingValidator };
+const getBookingValidator = z.object({
+  bookingId: z
+    .string({
+      required_error: 'Booking id is required.',
+      invalid_type_error: 'Booking id must be a string.',
+    })
+    .length(36, 'Booking id must be 36 characters.'),
+});
+
+export { createBookingValidator, getBookingValidator };
