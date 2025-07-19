@@ -4,20 +4,45 @@ import {
   ConflictException,
   InternalServerErrorException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createUserValidator, loginValidator } from './users.zodValidator';
-import { User } from '@prisma/client';
+import {
+  createUserValidator,
+  getDriverClientValidator,
+  loginValidator,
+} from './users.zodValidator';
+import { Bus, Schedule, User } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
 import * as jwt from 'jsonwebtoken';
 import { customExpressInterface } from './users.guard';
 
+// defining a type for the get driver by id route for client's data property on it's response body
+export interface GetDriverOutputDataPropertyInterfaceClient {
+  driverId: string;
+  driverFirstName: string;
+  driverLastName: string;
+  email: string;
+  phoneNumber: string;
+  profilePicture: string;
+  bus: {
+    busId: string | null;
+    busRegistrationNumber: string | null;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+    class: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+    farePerTicket: number | null;
+    busPicture: string | null;
+  };
+  totalTrips: number;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  // setting up a create user controller function with a custom success status, form data initialization decorator with a declaration of using file system based image loading
   async createUserService(
     requestBody: typeof createUserValidator,
   ): Promise<{ status: string; message: string }> {
@@ -203,6 +228,88 @@ export class UsersService {
 
       return true;
     } catch {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // the get drivers controller will retrieve data of a driver and will retrieve the bus data binded to the driver
+  async getDriverClientService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetDriverOutputDataPropertyInterfaceClient;
+  }> {
+    // validate the client provided url path parameter
+    const validatedData = getDriverClientValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    try {
+      // check if a driver exist with the provided driver id
+      const checkDriverExists: User | null = await this.prisma.user.findFirst({
+        where: {
+          AND: [{ id: validatedData.data.driverId }, { role: 'DRIVER' }],
+        },
+      });
+
+      if (!checkDriverExists) {
+        throw new NotFoundException({
+          status: 'error',
+          message: 'No driver found with provided id',
+        });
+      }
+
+      // retrieve the binded bus to the driver
+      const foundBus: Bus | null = await this.prisma.bus.findFirst({
+        where: {
+          driverId: checkDriverExists.id,
+        },
+      });
+
+      // retrieve the ammount of trips the driver has completed
+      const foundScheduleThroughBusId: Schedule | null =
+        await this.prisma.schedule.findFirst({
+          where: {
+            busId: foundBus?.id,
+          },
+        });
+
+      const completedDriverTrips: number = await this.prisma.trip.count({
+        where: {
+          scheduleId: foundScheduleThroughBusId?.id,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Driver data has been retrieved successfully.',
+        data: {
+          driverId: checkDriverExists.id,
+          driverFirstName: checkDriverExists.firstName,
+          driverLastName: checkDriverExists.lastName,
+          email: checkDriverExists.email,
+          phoneNumber: checkDriverExists.phoneNumber,
+          profilePicture: checkDriverExists.profilePicture,
+          bus: {
+            busId: foundBus?.id ?? null,
+            busRegistrationNumber: foundBus?.id ?? null,
+            busType: foundBus?.busType ?? null,
+            class: foundBus?.class ?? null,
+            farePerTicket: foundBus?.farePerTicket ?? null,
+            busPicture: foundBus?.busPicture ?? null,
+          },
+          totalTrips: completedDriverTrips,
+        },
+      };
+    } catch (error) {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong.',

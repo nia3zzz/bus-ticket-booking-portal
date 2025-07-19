@@ -6,8 +6,13 @@ import {
   Req,
   Res,
   UseGuards,
+  Get,
+  Param,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
+import {
+  GetDriverOutputDataPropertyInterfaceClient,
+  UsersService,
+} from './users.service';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
 import { createUserValidator, loginValidator } from './users.zodValidator';
 import { Response } from 'express';
@@ -52,5 +57,16 @@ export class UsersController {
       status: 'success',
       message: 'User has been logged out.',
     });
+  }
+
+  // the get drivers controller will retrieve data of a driver and will retrieve the bus data binded to the driver
+  @Get('/drivers/:driverId')
+  @UseGuards(AuthGuard)
+  async getDriverClient(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetDriverOutputDataPropertyInterfaceClient;
+  }> {
+    return this.usersService.getDriverClientService(params);
   }
 }

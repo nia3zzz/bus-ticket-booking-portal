@@ -119,4 +119,13 @@ const loginValidator = z
     { message: 'At least one of email or phone number must be provided.' },
   );
 
-export { createUserValidator, loginValidator };
+const getDriverClientValidator = z.object({
+  driverId: z
+    .string({
+      required_error: 'Driver id is required.',
+      invalid_type_error: 'Driver id must be a string.',
+    })
+    .length(36, 'Driver id must be 36 characters.'),
+});
+
+export { createUserValidator, loginValidator, getDriverClientValidator };
