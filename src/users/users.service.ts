@@ -11,6 +11,7 @@ import {
   createUserValidator,
   getDriverClientValidator,
   loginValidator,
+  updateProfileValidator,
 } from './users.zodValidator';
 import { Bus, Schedule, User } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -231,6 +232,128 @@ export class UsersService {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // the update profile controller takes in data of the user's profile for updating based on the client request and the userid
+  async updateProfileService(
+    request: customExpressInterface,
+    requestBody: typeof updateProfileValidator,
+  ): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the provided request body
+    const validatedData = updateProfileValidator.safeParse(requestBody);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a user with the same provided email already exists
+    const checkDuplicateUserByEmail: User | null =
+      await this.prisma.user.findUnique({
+        where: {
+          email: validatedData.data.email,
+        },
+      });
+
+    if (
+      checkDuplicateUserByEmail &&
+      request.foundExistingUser.email !== checkDuplicateUserByEmail.email
+    ) {
+      throw new ConflictException({
+        status: 'error',
+        message: 'User with this email already exists.',
+      });
+    }
+
+    // check if a user with the same provided phone number already exists
+    const checkDuplicateUserByPhoneNumber: User | null =
+      await this.prisma.user.findUnique({
+        where: {
+          phoneNumber: validatedData.data.phoneNumber,
+        },
+      });
+
+    if (
+      checkDuplicateUserByPhoneNumber &&
+      request.foundExistingUser.phoneNumber !==
+        checkDuplicateUserByPhoneNumber.phoneNumber
+    ) {
+      throw new ConflictException({
+        status: 'error',
+        message: 'User with this phone numbers already exists.',
+      });
+    }
+
+    try {
+      // check if the profile picture has been provided as a file or as the uploaded cloudinary image url link already saved in the user
+      let cloudinaryUploadedProfilePictureUrl: string | null = null;
+
+      if (typeof validatedData.data.profilePicture === 'string') {
+        cloudinaryUploadedProfilePictureUrl =
+          request.foundExistingUser.profilePicture;
+
+        // check if no update has been found, using it in this profile picture being string case is because this already makes sure that the profile picture is not a dynamic file
+        if (
+          request.foundExistingUser.firstName ===
+            validatedData.data.firstName &&
+          request.foundExistingUser.lastName === validatedData.data.lastName &&
+          request.foundExistingUser.email === validatedData.data.email &&
+          request.foundExistingUser.phoneNumber ===
+            validatedData.data.phoneNumber
+        ) {
+          throw new ConflictException({
+            status: 'error',
+            message: 'No changes found to update the user profile.',
+          });
+        }
+      }
+
+      // upload the provided profile picture by the user to cloudinary
+      if (typeof validatedData.data.profilePicture === 'object') {
+        const uploadedImage: uploadedImageInterface =
+          await cloudinaryConfig.uploader.upload(
+            validatedData.data.profilePicture.path,
+          );
+
+        cloudinaryUploadedProfilePictureUrl = uploadedImage.secure_url;
+      }
+
+      // if the email was the same update accordingly by updating the isVerfied using a conditional cheque
+      const updatedUserProfile: User | null = await this.prisma.user.update({
+        where: {
+          id: request.foundExistingUser.id,
+        },
+        data: {
+          firstName: validatedData.data.firstName,
+          lastName: validatedData.data.lastName,
+          email: validatedData.data.email,
+          phoneNumber: validatedData.data.phoneNumber,
+          profilePicture:
+            cloudinaryUploadedProfilePictureUrl ??
+            request.foundExistingUser.profilePicture,
+          isVerified:
+            request.foundExistingUser.email === validatedData.data.email,
+        },
+      });
+
+      await SendMailToVerifyEmailWithCode(updatedUserProfile);
+
+      return {
+        status: 'success',
+        message: 'Profile has been updated successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Smething went wrong.',
       });
     }
   }

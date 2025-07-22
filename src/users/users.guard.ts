@@ -26,7 +26,7 @@ export class AuthGuard implements CanActivate {
 
     // the raw token cookie value after spliting from the token suffix
     const rawTokenCookieValue: string | undefined =
-      request.headers.cookie?.split("=")[1];
+      request.headers.cookie?.split('=')[1];
 
     if (!rawTokenCookieValue) {
       throw new UnauthorizedException({
@@ -75,6 +75,14 @@ export class AuthGuard implements CanActivate {
 
     // if the user indicates null
     if (!foundExistingUser) {
+      throw new UnauthorizedException({
+        status: 'error',
+        message: 'Unauthorized, login first.',
+      });
+    }
+
+    // check if the user is marked as unverified
+    if (!foundExistingUser.isVerified) {
       throw new UnauthorizedException({
         status: 'error',
         message: 'Unauthorized, login first.',

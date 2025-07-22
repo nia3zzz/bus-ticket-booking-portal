@@ -8,13 +8,18 @@ import {
   UseGuards,
   Get,
   Param,
+  Put,
 } from '@nestjs/common';
 import {
   GetDriverOutputDataPropertyInterfaceClient,
   UsersService,
 } from './users.service';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
-import { createUserValidator, loginValidator } from './users.zodValidator';
+import {
+  createUserValidator,
+  loginValidator,
+  updateProfileValidator,
+} from './users.zodValidator';
 import { Response } from 'express';
 import { AuthGuard, customExpressInterface } from './users.guard';
 
@@ -57,6 +62,20 @@ export class UsersController {
       status: 'success',
       message: 'User has been logged out.',
     });
+  }
+
+  // the update profile controller takes in data of the user's profile for updating based on the client request and the userid
+  @Put('/profile')
+  @UseGuards(AuthGuard)
+  @FormDataRequest({ storage: FileSystemStoredFile })
+  async updateProfile(
+    @Req() request: customExpressInterface,
+    @Body() requestBody: typeof updateProfileValidator,
+  ): Promise<{
+    status: string;
+    message: String;
+  }> {
+    return this.usersService.updateProfileService(request, requestBody);
   }
 
   // the get drivers controller will retrieve data of a driver and will retrieve the bus data binded to the driver
