@@ -50,6 +50,18 @@ export class UsersController {
     });
   }
 
+  // the verify email route that will verify a client's code to mark them as verified after providing server side generate 6 digit code also sent to their email
+  @Post('/verifyemails/:verificationId')
+  async verifyEmail(
+    @Param() params: any,
+    @Body() requestBody: any,
+  ): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return await this.usersService.verifyEmailService({ params, requestBody });
+  }
+
   // the logout controller for implimenting the logics of a user logging out by using sessions and checking authorization and authentication of user
   @Post('/logout')
   @UseGuards(AuthGuard)
@@ -71,11 +83,27 @@ export class UsersController {
   async updateProfile(
     @Req() request: customExpressInterface,
     @Body() requestBody: typeof updateProfileValidator,
-  ): Promise<{
-    status: string;
-    message: String;
-  }> {
-    return this.usersService.updateProfileService(request, requestBody);
+    @Res() response: Response,
+  ): Promise<
+    | {
+        status: string;
+        message: string;
+      }
+    | Response
+  > {
+    const serviceResult = await this.usersService.updateProfileService(
+      request,
+      requestBody,
+    );
+
+    if (serviceResult === true) {
+      return response.status(200).clearCookie('token').json({
+        status: 'success',
+        message: 'User has been logged out.',
+      });
+    }
+
+    return serviceResult;
   }
 
   // the get drivers controller will retrieve data of a driver and will retrieve the bus data binded to the driver

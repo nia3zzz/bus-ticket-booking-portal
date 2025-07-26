@@ -12,8 +12,9 @@ import {
   getDriverClientValidator,
   loginValidator,
   updateProfileValidator,
+  verifyEmailValidator,
 } from './users.zodValidator';
-import { Bus, Schedule, User } from '@prisma/client';
+import { Bus, Schedule, User, Verifications } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
@@ -169,16 +170,18 @@ export class UsersService {
       const hashedRandomSixDigitCode =
         await SendMailToVerifyEmailWithCode(foundExistingUser);
 
-      await this.prisma.verifications.create({
-        data: {
-          userId: foundExistingUser.id,
-          hashedCode: hashedRandomSixDigitCode,
-        },
-      });
+      const hashedDocument: Verifications =
+        await this.prisma.verifications.create({
+          data: {
+            userId: foundExistingUser.id,
+            hashedCode: hashedRandomSixDigitCode,
+          },
+        });
 
       throw new UnauthorizedException({
         status: 'error',
         message: 'A 6 digit code has been sent to your email for verification.',
+        verificationId: hashedDocument.id,
       });
     }
     // check and verify the password
@@ -217,6 +220,77 @@ export class UsersService {
     }
   }
 
+  // the verify email route that will verify a client's code to mark them as verified after providing server side generate 6 digit code also sent to their email
+  async verifyEmailService(requestData: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the provided param and body's data
+    const validatedData = verifyEmailValidator.safeParse({
+      verificationId: requestData.params.verificationId,
+      sixDigitVerificationCode:
+        requestData.requestBody.sixDigitVerificationCode,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a verificaton document exists with the provided verification id
+    const checkVerificationDocumentExists: Verifications | null =
+      await this.prisma.verifications.findUnique({
+        where: {
+          id: validatedData.data.verificationId,
+        },
+      });
+
+    if (!checkVerificationDocumentExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message:
+          'No verification document found with provided verification id.',
+      });
+    }
+
+    // verify the provided client 6 digit code with the hashed saved code in database
+    const checkHashedCodeMatchesWithClientCode: boolean = await argon2.verify(
+      checkVerificationDocumentExists.hashedCode,
+      validatedData.data.sixDigitVerificationCode,
+    );
+
+    if (!checkHashedCodeMatchesWithClientCode) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Provided 6 digit code is incorrect.',
+      });
+    }
+    try {
+      // update the user's isVerified field as true scince the verification is complete
+      await this.prisma.user.update({
+        where: {
+          id: checkVerificationDocumentExists.userId,
+        },
+        data: {
+          isVerified: true,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: 'Your email has been verified successfully.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
   // the logout controller service class method that works to delete the session of a user's session and sends a success message
   async logoutUserService(request: customExpressInterface): Promise<boolean> {
     try {
@@ -240,10 +314,13 @@ export class UsersService {
   async updateProfileService(
     request: customExpressInterface,
     requestBody: typeof updateProfileValidator,
-  ): Promise<{
-    status: string;
-    message: string;
-  }> {
+  ): Promise<
+    | {
+        status: string;
+        message: string;
+      }
+    | true
+  > {
     // validate the provided request body
     const validatedData = updateProfileValidator.safeParse(requestBody);
 
@@ -344,8 +421,11 @@ export class UsersService {
         },
       });
 
-      await SendMailToVerifyEmailWithCode(updatedUserProfile);
+      if (request.foundExistingUser.email !== validatedData.data.email) {
+        await SendMailToVerifyEmailWithCode(updatedUserProfile);
 
+        return true;
+      }
       return {
         status: 'success',
         message: 'Profile has been updated successfully.',

@@ -217,9 +217,26 @@ const updateProfileValidator = z.object({
   ]),
 });
 
+const verifyEmailValidator = z.object({
+  verificationId: z
+    .string({
+      required_error: 'Verification id is required.',
+      invalid_type_error: 'Verification id must be a string.',
+    })
+    .length(36, 'Verification id must be 36 characters.'),
+
+  sixDigitVerificationCode: z
+    .string({
+      required_error: 'Six digit verification code is required.',
+      invalid_type_error: 'Six digit verification code is all numbers.',
+    })
+    .length(6, 'Six digit verification code must be 6 characters.'),
+});
+
 export {
   createUserValidator,
   loginValidator,
   getDriverClientValidator,
   updateProfileValidator,
+  verifyEmailValidator,
 };
