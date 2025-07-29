@@ -33,6 +33,7 @@
     "nestjs-form-data": "^1.9.93",
     "node-cron": "^4.0.7",
     "nodemailer": "^7.0.3",
+    "pdfkit": "^0.17.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.24.4"
@@ -52,6 +53,7 @@
     "@types/node": "^22.10.7",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.17",
+    "@types/pdfkit": "^0.17.2",
     "@types/supertest": "^6.0.2",
     "corepack": "^0.32.0",
     "eslint": "^9.18.0",

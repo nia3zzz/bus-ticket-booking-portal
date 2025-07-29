@@ -1,4 +1,12 @@
-import { BookedSeat, Booking, Bus, Route, User } from '@prisma/client';
+import {
+  BookedSeat,
+  Booking,
+  Bus,
+  Payment,
+  Route,
+  Schedule,
+  User,
+} from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import * as argon2 from 'argon2';
 
@@ -148,7 +156,47 @@ const SendMailToProvidePaymentInvoiceAfterBookingSeats = async (
   }
 };
 
+//this send email function will be used for sending the email to the client that has confirmed their booked seats by completing their payment and this email will send their confirmed seat's tickets as an pdf
+const SendMailToProvideConfirmedTicketsAfterPayment = async (
+  foundExistingUser: User,
+  ticketPdfUrl: string,
+) => {
+  try {
+    // create an html content body using the recieved parameters
+    const htmlContent: string = `    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+      <h2 style="color: #28a745;">Payment Successful</h2>
+      <p>Hello ${foundExistingUser.firstName || 'User'},</p>
+      <p>Thank you for booking with us. Your payment has been successfully processed.</p>
+      <p>Please find your ticket PDF at the link below:</p>
+      <p>
+        <a href="${ticketPdfUrl}" style="color: #007bff; text-decoration: none;" target="_blank">
+          👉 View Your Tickets (PDF)
+        </a>
+      </p>
+      <p>If you have any questions, feel free to reply to this email.</p>
+      <p style="margin-top: 30px;">Best regards,<br/>Your Travel Team</p>
+    </div>`;
+
+    // the message variable holds the object with the neccessary information that is required to call the sendmail function
+    const message: {} = {
+      from: process.env.NODEMAILER_AUTH_EMAIL,
+      to: foundExistingUser.email,
+      subject: 'Your payment has been confirmed, enjoy your journey!',
+      html: htmlContent,
+    };
+
+    // this sends the email
+    await transporter.sendMail(message);
+  } catch (error) {
+    throw new Error(
+      'Something went wrong in SendMailToProvideConfirmedTickets function: ',
+      error as undefined,
+    );
+  }
+};
+
 export {
   SendMailToVerifyEmailWithCode,
   SendMailToProvidePaymentInvoiceAfterBookingSeats,
+  SendMailToProvideConfirmedTicketsAfterPayment,
 };
