@@ -364,6 +364,15 @@ const updateScheduleValidator = z.object({
   }),
 });
 
+const getTicketDataValidator = z.object({
+  bookingId: z
+    .string({
+      required_error: 'Booking id is required.',
+      invalid_type_error: 'Booking id must be a string.',
+    })
+    .length(36, 'Booking id must be 36 characters.'),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -379,4 +388,5 @@ export {
   updateBusValidator,
   getSchedulesValidator,
   updateScheduleValidator,
+  getTicketDataValidator,
 };

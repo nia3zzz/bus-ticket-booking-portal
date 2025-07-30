@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -16,6 +17,7 @@ import {
   getBusesValidator,
   getBusValidator,
   getSchedulesValidator,
+  getTicketDataValidator,
   getTripsValidator,
   getTripValidator,
   startTripValidator,
@@ -23,7 +25,18 @@ import {
   updateScheduleValidator,
   updateTripStatusValidator,
 } from './admins.zodValidator';
-import { Bus, Prisma, Route, Schedule, Trip, User } from '@prisma/client';
+import {
+  BookedSeat,
+  Booking,
+  Bus,
+  Payment,
+  Prisma,
+  Route,
+  Schedule,
+  Ticket,
+  Trip,
+  User,
+} from '@prisma/client';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { BusTypes } from '@prisma/client';
 import { JsonValue } from '@prisma/client/runtime/library';
@@ -175,6 +188,41 @@ export interface GetScheduleOutputPropertyInterface {
   estimatedDepartureTimeDate: Date;
   estimatedArrivalTimeDate: Date;
   createdAt: Date;
+}
+
+//type declaration for the interface of get ticket data service's data property withtin the response body
+export interface getTicketDataOutputPropertyInterface {
+  user: {
+    userId: string;
+    userFirstName: string;
+    userLastName: string;
+    userEmail: string;
+    userPhoneNumber: string;
+  };
+  schedule: {
+    scheduleId: string;
+    estimatedDepartureTimeDate: Date;
+    estimatedArrivalTimeDate: Date;
+  };
+  bus: {
+    busId: string;
+    busRegistrationNumber: string;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS';
+    class: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS';
+  };
+  route: {
+    routeId: string;
+    origin: string;
+    destination: string;
+  };
+  booking: {
+    bookingId: string;
+    status: 'PAID';
+    journeyDate: Date;
+    bookedSeats: JsonValue;
+    paymentStatus: 'SUCCESS';
+    ticketPdfUrl: string;
+  };
 }
 
 // declaraing a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
@@ -2060,6 +2108,163 @@ export class AdminsService {
       return {
         status: 'success',
         message: 'Trip has been deleted.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will let a admin get details of a user created booking to specifically verify the ticket by the admin
+  async getTicketDataService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: getTicketDataOutputPropertyInterface;
+  }> {
+    // validate the requestData recieved from the controller file
+    const validatedData = getTicketDataValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    //check if  a booking document exists with the provided booking document id
+    const checkBookingExists: Booking | null =
+      await this.prisma.booking.findUnique({
+        where: {
+          id: validatedData.data.bookingId,
+        },
+      });
+
+    if (!checkBookingExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No booking found with provided booking id.',
+      });
+    }
+
+    //check in the booking document if the payment has been completed
+    if (checkBookingExists.status !== 'PAID') {
+      throw new ForbiddenException({
+        status: 'error',
+        message: 'Payment for booked seats has not been completed.',
+      });
+    }
+
+    //retrieve all the required foreign key documents that is linked with this document
+    const foundUser: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: checkBookingExists.userId,
+      },
+    });
+
+    const foundSchedule: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: checkBookingExists.scheduleId,
+        },
+      });
+
+    const foundBus: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: foundSchedule?.busId,
+      },
+    });
+
+    const foundRoute: Route | null = await this.prisma.route.findUnique({
+      where: {
+        id: foundSchedule?.routeId,
+      },
+    });
+
+    const foundBookedSeats: BookedSeat | null =
+      await this.prisma.bookedSeat.findFirst({
+        where: {
+          bookingId: checkBookingExists?.id,
+        },
+      });
+
+    const foundPayment: Payment | null = await this.prisma.payment.findFirst({
+      where: {
+        bookingId: checkBookingExists?.id,
+      },
+    });
+
+    const foundTicket: Ticket | null = await this.prisma.ticket.findFirst({
+      where: {
+        bookingId: checkBookingExists?.id,
+      },
+    });
+
+    //if one of the required documents are missing send back a internal server exception error message
+    if (
+      !foundUser ||
+      !foundSchedule ||
+      !foundBus ||
+      !foundRoute ||
+      !foundBookedSeats ||
+      !foundPayment ||
+      !foundTicket
+    ) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+
+    // check if the ticket has not been refunded after payment
+    if (foundPayment.status === 'REFUNDED') {
+      throw new ForbiddenException({
+        status: 'error',
+        message: 'Booked tickets are already refunded.',
+      });
+    }
+
+    try {
+      //return the data in the required type format of the custom interface called getTicketDataOutputPropertyInterface
+      return {
+        status: 'success',
+        message: 'Ticket data has been retrieved successfully.',
+        data: {
+          user: {
+            userId: foundUser.id,
+            userFirstName: foundUser.firstName,
+            userLastName: foundUser.lastName,
+            userEmail: foundUser.email,
+            userPhoneNumber: foundUser.phoneNumber,
+          },
+          schedule: {
+            scheduleId: foundSchedule.id,
+            estimatedDepartureTimeDate:
+              foundSchedule.estimatedDepartureTimeDate,
+            estimatedArrivalTimeDate: foundSchedule.estimatedArrivalTimeDate,
+          },
+          bus: {
+            busId: foundBus.id,
+            busRegistrationNumber: foundBus.busRegistrationNumber,
+            busType: foundBus.busType,
+            class: foundBus.class,
+          },
+          route: {
+            routeId: foundRoute.id,
+            origin: foundRoute.origin,
+            destination: foundRoute.destination,
+          },
+          booking: {
+            bookingId: checkBookingExists.id,
+            status: checkBookingExists.status,
+            journeyDate: checkBookingExists.journeyDate,
+            bookedSeats: foundBookedSeats.seatNumbers,
+            paymentStatus: foundPayment.status,
+            ticketPdfUrl: foundTicket.ticketPdfUrl,
+          },
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({

@@ -20,6 +20,7 @@ import {
   GetSchedulesOutputPropertyInterface,
   GetTripOutputDataPropertyInterface,
   GetTripsOutputDataPropertyInterface,
+  getTicketDataOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -31,6 +32,7 @@ import {
   updateScheduleValidator,
 } from './admins.zodValidator';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
+import { AuthGuard } from 'src/users/users.guard';
 
 @Controller('admins')
 export class AdminsController {
@@ -265,5 +267,16 @@ export class AdminsController {
     message: string;
   }> {
     return this.adminsService.deleteTripService(params);
+  }
+
+  // defining a controller function that will let a admin get details of a user created booking to specifically verify the ticket by the admin
+  @Get('/tickets/:bookingId')
+  @UseGuards(AuthGuard)
+  async getTicketData(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: getTicketDataOutputPropertyInterface;
+  }> {
+    return await this.adminsService.getTicketDataService(params);
   }
 }
