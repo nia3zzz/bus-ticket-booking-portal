@@ -196,6 +196,7 @@ export class PaymentsService {
 
       doc.text(`Payment Method: ${createPayment.method}`);
       doc.text(`Reference id: ${createPayment.referenceCode}`);
+      doc.text(`Booking id: ${checkBookingExists.id}`);
 
       doc.end();
 
