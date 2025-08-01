@@ -20,7 +20,8 @@ import {
   GetSchedulesOutputPropertyInterface,
   GetTripOutputDataPropertyInterface,
   GetTripsOutputDataPropertyInterface,
-  getTicketDataOutputPropertyInterface,
+  GetTicketDataOutputPropertyInterface,
+  GetBookedSeatsDataOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -271,12 +272,23 @@ export class AdminsController {
 
   // defining a controller function that will let a admin get details of a user created booking to specifically verify the ticket by the admin
   @Get('/tickets/:bookingId')
-  @UseGuards(AuthGuard)
+  @UseGuards(AdminsGuard)
   async getTicketData(@Param() params: any): Promise<{
     status: string;
     message: string;
-    data: getTicketDataOutputPropertyInterface;
+    data: GetTicketDataOutputPropertyInterface;
   }> {
     return await this.adminsService.getTicketDataService(params);
+  }
+
+  // defining a controller function that will let an admin get booked seats data based on provided scheduleid and date query
+  @Get('/bookings')
+  @UseGuards(AdminsGuard)
+  async getBookedSeatsData(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBookedSeatsDataOutputPropertyInterface;
+  }> {
+    return await this.adminsService.getBookedSeatsDataService(requestQueries);
   }
 }

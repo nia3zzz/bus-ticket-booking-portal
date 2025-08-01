@@ -14,6 +14,7 @@ import {
   createBusValidator,
   createScheduleValidator,
   deleteRouteValidator,
+  getBookedSeatsDataValidator,
   getBusesValidator,
   getBusValidator,
   getSchedulesValidator,
@@ -191,7 +192,7 @@ export interface GetScheduleOutputPropertyInterface {
 }
 
 //type declaration for the interface of get ticket data service's data property withtin the response body
-export interface getTicketDataOutputPropertyInterface {
+export interface GetTicketDataOutputPropertyInterface {
   user: {
     userId: string;
     userFirstName: string;
@@ -223,6 +224,24 @@ export interface getTicketDataOutputPropertyInterface {
     paymentStatus: 'SUCCESS';
     ticketPdfUrl: string;
   };
+}
+
+// type declaration for the interface of the Get Booked Seats Data Service's data property in the response body
+export interface GetBookedSeatsDataOutputPropertyInterface {
+  busId: string | null;
+  busRegistrationNumber: string | null;
+  driverId: string | null;
+  driverFirstName: string | null;
+  driverLastName: string | null;
+  bookedSeatData: {
+    bookingId: string;
+    userId: string;
+    userFirstName: string | null;
+    userLastName: string | null;
+    userPhoneNumber: string | null;
+    status: 'PENDING' | 'PAID' | 'CANCELLED';
+    bookedSeats: JsonValue | null;
+  }[];
 }
 
 // declaraing a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
@@ -2121,7 +2140,7 @@ export class AdminsService {
   async getTicketDataService(params: any): Promise<{
     status: string;
     message: string;
-    data: getTicketDataOutputPropertyInterface;
+    data: GetTicketDataOutputPropertyInterface;
   }> {
     // validate the requestData recieved from the controller file
     const validatedData = getTicketDataValidator.safeParse(params);
@@ -2270,6 +2289,117 @@ export class AdminsService {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will let an admin get booked seats data based on provided scheduleid and date query
+  async getBookedSeatsDataService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBookedSeatsDataOutputPropertyInterface;
+  }> {
+    // validate the recieved queries from the client
+    const validatedQueries =
+      getBookedSeatsDataValidator.safeParse(requestQueries);
+
+    if (!validatedQueries.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedQueries.error.errors,
+      });
+    }
+
+    // check if a schedule with the name of the provided schedule id exists in the database
+    const checkScheduleExists: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: validatedQueries.data.scheduleId,
+        },
+      });
+
+    if (!checkScheduleExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No schedule found with provided schedule id.',
+      });
+    }
+
+    // retrieve the bus document set as a foreign key in the schedule document
+    const foundBus: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: checkScheduleExists.busId,
+      },
+    });
+
+    // retrieve the driver that is set as a foreign key in the bus document
+    const foundDriver: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: foundBus?.driverId,
+      },
+    });
+
+    // now retrieve all the bookings based on the found schedule and provided journeyDate
+    const foundBookingsFromScheduleAndJourneyDate: Booking[] | null =
+      await this.prisma.booking.findMany({
+        where: {
+          AND: [
+            {
+              scheduleId: checkScheduleExists.id,
+            },
+            {
+              journeyDate: validatedQueries.data.journeyDate,
+            },
+          ],
+        },
+      });
+
+    try {
+      // build the data to be returned and the bookings to send an array of declared type interface's data
+      return {
+        status: 'success',
+        message: 'Booked seats data is retrieved successfully.',
+        data: {
+          busId: foundBus?.id ?? null,
+          busRegistrationNumber: foundBus?.busRegistrationNumber ?? null,
+          driverId: foundDriver?.id ?? null,
+          driverFirstName: foundDriver?.firstName ?? null,
+          driverLastName: foundDriver?.lastName ?? null,
+          bookedSeatData: await Promise.all(
+            foundBookingsFromScheduleAndJourneyDate.map(async (booking) => {
+              // retrieve the customer detail from the user id booking document
+              const foundUser: User | null = await this.prisma.user.findUnique({
+                where: {
+                  id: booking.userId,
+                },
+              });
+
+              // retrieve the booked seats booked by the user
+              const foundBookedSeats: BookedSeat | null =
+                await this.prisma.bookedSeat.findFirst({
+                  where: {
+                    bookingId: booking.id,
+                  },
+                });
+
+              return {
+                bookingId: booking.id,
+                userId: booking.userId,
+                userFirstName: foundUser?.firstName ?? null,
+                userLastName: foundUser?.lastName ?? null,
+                userPhoneNumber: foundUser?.phoneNumber ?? null,
+                status: booking.status,
+                bookedSeats: foundBookedSeats?.seatNumbers ?? null,
+              };
+            }),
+          ),
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong',
       });
     }
   }

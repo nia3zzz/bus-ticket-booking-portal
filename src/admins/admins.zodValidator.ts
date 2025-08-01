@@ -373,6 +373,20 @@ const getTicketDataValidator = z.object({
     .length(36, 'Booking id must be 36 characters.'),
 });
 
+const getBookedSeatsDataValidator = z.object({
+  scheduleId: z
+    .string({
+      required_error: 'Schedule is required.',
+      invalid_type_error: 'Schedule id must be a string.',
+    })
+    .length(36, 'Schedule id must be 36 characters.'),
+
+  journeyDate: z.coerce.date({
+    required_error: 'Journey date is required.',
+    invalid_type_error: 'Journey date must be a date.',
+  }),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -389,4 +403,5 @@ export {
   getSchedulesValidator,
   updateScheduleValidator,
   getTicketDataValidator,
+  getBookedSeatsDataValidator,
 };
