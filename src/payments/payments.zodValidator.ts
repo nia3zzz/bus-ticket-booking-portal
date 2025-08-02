@@ -28,4 +28,13 @@ const completePaymentValidator = z.object({
     .length(36, 'Reference code must be 36 characters.'),
 });
 
-export { completePaymentValidator };
+const getPaymentDataValidator = z.object({
+  paymentId: z
+    .string({
+      required_error: 'Payment id is required.',
+      invalid_type_error: 'Payment id must be a string.',
+    })
+    .length(36, 'Payment id must be 36 characters.'),
+});
+
+export { completePaymentValidator, getPaymentDataValidator };

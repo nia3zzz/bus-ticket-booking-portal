@@ -1,12 +1,16 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { PaymentsService } from './payments.service';
+import {
+  getPaymentDataOutputDataPropertyInterface,
+  PaymentsService,
+} from './payments.service';
 import { AuthGuard, customExpressInterface } from 'src/users/users.guard';
 
 @Controller('payments')
@@ -31,5 +35,16 @@ export class PaymentsController {
       params,
       requestBody,
     });
+  }
+
+  //  this get payment data lets an user get data of their compelted payment on one of their booked seats
+  @Get('/:paymentId')
+  @UseGuards(AuthGuard)
+  async getPaymentData(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: getPaymentDataOutputDataPropertyInterface;
+  }> {
+    return await this.paymentService.getPaymentDataService(params);
   }
 }

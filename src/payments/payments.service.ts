@@ -7,7 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { completePaymentValidator } from './payments.zodValidator';
+import {
+  completePaymentValidator,
+  getPaymentDataValidator,
+} from './payments.zodValidator';
 import {
   BookedSeat,
   Booking,
@@ -22,6 +25,19 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
+
+// type interface declaration for the Get Payment Data's data property in it's response body
+export interface getPaymentDataOutputDataPropertyInterface {
+  bookingId: string;
+  totalPrice: number;
+  bookingStatus: 'PENDING' | 'PAID' | 'CANCELLED';
+  journeyDate: Date;
+  paymentId: string;
+  paymentMethod: 'ONLINE' | 'CASH';
+  referenceCode: string;
+  paymentStatus: 'SUCCESS' | 'REFUNDED';
+  paymentDate: Date;
+}
 
 @Injectable()
 export class PaymentsService {
@@ -243,6 +259,78 @@ export class PaymentsService {
           'Your payment has been successfully processed, tickets have been sent to your email.',
         data: {
           paymentId: createPayment.id,
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  //  this get payment data lets an user get data of their compelted payment on one of their booked seats
+  async getPaymentDataService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: getPaymentDataOutputDataPropertyInterface;
+  }> {
+    //validate the provided request path parameter
+    const validatedData = getPaymentDataValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if the payment id exists
+    const checkPaymentExists: Payment | null =
+      await this.prisma.payment.findUnique({
+        where: {
+          id: validatedData.data.paymentId,
+        },
+      });
+
+    if (!checkPaymentExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No payment found with the provided payment id.',
+      });
+    }
+
+    // retrieve the booking document using the payment's foreign key booking id
+    const retrievedBookingDocument: Booking | null =
+      await this.prisma.booking.findUnique({
+        where: {
+          id: checkPaymentExists.bookingId,
+        },
+      });
+
+    if (!retrievedBookingDocument) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+
+    try {
+      // return the data according to the declared interface
+      return {
+        status: 'success',
+        message: 'Payment data has been retrieved successfully.',
+        data: {
+          bookingId: retrievedBookingDocument.id,
+          totalPrice: retrievedBookingDocument.totalPrice,
+          bookingStatus: retrievedBookingDocument.status,
+          journeyDate: retrievedBookingDocument.journeyDate,
+          paymentId: checkPaymentExists.id,
+          paymentMethod: checkPaymentExists.method,
+          referenceCode: checkPaymentExists.referenceCode,
+          paymentStatus: checkPaymentExists.status,
+          paymentDate: checkPaymentExists.createdAt,
         },
       };
     } catch (error) {

@@ -33,7 +33,6 @@ import {
   updateScheduleValidator,
 } from './admins.zodValidator';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
-import { AuthGuard } from 'src/users/users.guard';
 
 @Controller('admins')
 export class AdminsController {
