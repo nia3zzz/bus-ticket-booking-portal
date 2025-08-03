@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { getBookedTicketValidator } from './tickets.zodValidator';
+import {
+  getBookedTicketValidator,
+  refundTicketValidator,
+} from './tickets.zodValidator';
 import { Booking, Ticket } from '@prisma/client';
 import { HttpException } from '@nestjs/common';
 import { customExpressInterface } from 'src/users/users.guard';
@@ -84,6 +87,110 @@ export class TicketsService {
       return {
         status: 'success',
         message: 'Tickets have been sent to your email.',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // this post method on this route with the ticketid on it's url as a path parameter will refund the ticket
+  async refundTicketService(requestData: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the provided parameter in url and body
+    const validatedData = refundTicketValidator.safeParse({
+      ticketId: requestData.params.ticketId,
+      reason: requestData.requestBody.reason,
+    });
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if the ticket document exists with the provided ticket id
+    const checkTicketExists: Ticket | null =
+      await this.prisma.ticket.findUnique({
+        where: {
+          id: validatedData.data.ticketId,
+        },
+      });
+
+    if (!checkTicketExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No ticket found with provided ticket id.',
+      });
+    }
+
+    // fetch the refund document with the tickets to check if the ticket has already been refunded
+    const checkRefundExists = await this.prisma.refund.findFirst({
+      where: {
+        ticketId: validatedData.data.ticketId,
+      },
+    });
+
+    if (checkRefundExists) {
+      // if the refund document exists, it means the ticket has already been refunded but depending on the value on the field of isMoneyRefunded we will send the appropriate message
+      throw new BadRequestException({
+        status: 'error',
+        message: `This ticket has already been refunded ${checkRefundExists.isMoneyRefunded ? 'with the booking money.' : 'and collect the booking money from the counter.'}`,
+      });
+    }
+
+    // retrieve the payment document
+    const foundPayment = await this.prisma.payment.findFirst({
+      where: {
+        bookingId: checkTicketExists.bookingId,
+      },
+    });
+
+    if (!foundPayment) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+
+    try {
+      // update the changes in booking document
+      await this.prisma.booking.update({
+        where: {
+          id: checkTicketExists.bookingId,
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      // update the payment document status to refunded
+      await this.prisma.payment.update({
+        where: {
+          id: foundPayment.id,
+        },
+        data: {
+          status: 'REFUNDED',
+        },
+      });
+
+      // create the refund document with the provided ticket id and reason
+      await this.prisma.refund.create({
+        data: {
+          ticketId: validatedData.data.ticketId,
+          reason: validatedData.data.reason,
+        },
+      });
+      return {
+        status: 'success',
+        message:
+          'Your ticket has been refunded, collect your paid amount from counter.',
       };
     } catch (error) {
       throw new InternalServerErrorException({

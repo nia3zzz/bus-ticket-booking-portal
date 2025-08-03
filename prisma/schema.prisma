@@ -176,6 +176,7 @@ model Ticket {
   ticketPdfUrl String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  Refund       Refund[]
 }
 
 // the sessions model is used to hold the information of a logged in user's session
@@ -195,4 +196,15 @@ model Verifications {
   hashedCode String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+// the refund model is used to hold the information of the refunded tickets
+model Refund {
+  id              String   @id @default(uuid())
+  ticket          Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId        String
+  reason          String
+  isMoneyRefunded Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
