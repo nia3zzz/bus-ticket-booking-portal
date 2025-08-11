@@ -17,6 +17,7 @@ import {
   getBookedSeatsDataValidator,
   getBusesValidator,
   getBusValidator,
+  getRefundsValidator,
   getSchedulesValidator,
   getTicketDataValidator,
   getTripsValidator,
@@ -32,6 +33,7 @@ import {
   Bus,
   Payment,
   Prisma,
+  Refund,
   Route,
   Schedule,
   Ticket,
@@ -244,7 +246,24 @@ export interface GetBookedSeatsDataOutputPropertyInterface {
   }[];
 }
 
-// declaraing a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
+//type declaration for the interface of the Get Refunds Service's data property in it's response body
+export interface GetRefundsOutputPropertyInterface {
+  refundId: string;
+  isMoneyRefunded: boolean;
+  busId: string | null;
+  busRegistrationNumber: string | null;
+  busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+  busClass: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+  origin: string | null;
+  destination: string | null;
+  userId: string | null;
+  userFirstName: string | null;
+  userLastName: string | null;
+  totalPrice: number | null;
+  journeyDate: Date | null;
+}
+
+// declaring a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
 const NONE_AC_BUS_ECONOMY_CLASS_SEATS: { [key: number]: string } = {
   1: '1A',
   2: '1B',
@@ -2400,6 +2419,118 @@ export class AdminsService {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong',
+      });
+    }
+  }
+
+  // defining a controller function that will let an admin get a list of all refunds based on provided queries
+  async getRefundsService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetRefundsOutputPropertyInterface[];
+  }> {
+    // validate the request queries from the client
+    const validatedQueries = getRefundsValidator.safeParse(requestQueries);
+
+    if (!validatedQueries.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedQueries.error.errors,
+      });
+    }
+
+    // build up a where object to filter the refunds based on the queries provided
+    const where: any = {};
+
+    // retrieve all the refunds based on the where query
+    if (validatedQueries.data.isMoneyRefunded === 'true') {
+      where.isMoneyRefunded = true;
+    } else if (validatedQueries.data.isMoneyRefunded === 'false') {
+      where.isMoneyRefunded = false;
+    }
+
+    const retrievedRefunds: Refund[] | null = await this.prisma.refund.findMany(
+      {
+        where,
+      },
+    );
+
+    try {
+      return {
+        status: 'success',
+        message: `${retrievedRefunds.length} refunds have been retrieved.`,
+        data: await Promise.all(
+          retrievedRefunds.map(async (refund) => {
+            // retrieve the ticket document from the refund document
+            const foundTicket: Ticket | null =
+              await this.prisma.ticket.findUnique({
+                where: {
+                  id: refund.ticketId,
+                },
+              });
+
+            // retrieve the booking document from the ticket document
+            const foundBooking: Booking | null =
+              await this.prisma.booking.findUnique({
+                where: {
+                  id: foundTicket?.bookingId,
+                },
+              });
+
+            // retrieve the user document from the booking document
+            const foundUser: User | null = await this.prisma.user.findUnique({
+              where: {
+                id: foundBooking?.userId,
+              },
+            });
+
+            // retrieve the schedule document from the booking document
+            const foundSchedule: Schedule | null =
+              await this.prisma.schedule.findUnique({
+                where: {
+                  id: foundBooking?.scheduleId,
+                },
+              });
+
+            // retrieve the bus document from the schedule document
+            const foundBus: Bus | null = await this.prisma.bus.findUnique({
+              where: {
+                id: foundSchedule?.busId,
+              },
+            });
+
+            // retrieve the route document from the schedule document
+            const foundRoute: Route | null = await this.prisma.route.findUnique(
+              {
+                where: {
+                  id: foundSchedule?.routeId,
+                },
+              },
+            );
+
+            return {
+              refundId: refund.id,
+              isMoneyRefunded: refund.isMoneyRefunded,
+              busId: foundBus?.id ?? null,
+              busRegistrationNumber: foundBus?.busRegistrationNumber ?? null,
+              busType: foundBus?.busType ?? null,
+              busClass: foundBus?.class ?? null,
+              origin: foundRoute?.origin ?? null,
+              destination: foundRoute?.destination ?? null,
+              userId: foundUser?.id ?? null,
+              userFirstName: foundUser?.firstName ?? null,
+              userLastName: foundUser?.lastName ?? null,
+              totalPrice: foundBooking?.totalPrice ?? null,
+              journeyDate: foundBooking?.journeyDate ?? null,
+            };
+          }),
+        ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
       });
     }
   }

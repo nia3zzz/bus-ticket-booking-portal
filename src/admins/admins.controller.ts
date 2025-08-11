@@ -22,6 +22,7 @@ import {
   GetTripsOutputDataPropertyInterface,
   GetTicketDataOutputPropertyInterface,
   GetBookedSeatsDataOutputPropertyInterface,
+  GetRefundsOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -289,5 +290,16 @@ export class AdminsController {
     data: GetBookedSeatsDataOutputPropertyInterface;
   }> {
     return await this.adminsService.getBookedSeatsDataService(requestQueries);
+  }
+
+  // defining a controller function that will let an admin get a list of all refunds based on provided queries
+  @Get('/refunds/')
+  @UseGuards(AdminsGuard)
+  async getRefunds(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: GetRefundsOutputPropertyInterface[];
+  }> {
+    return await this.adminsService.getRefundsService(requestQueries);
   }
 }

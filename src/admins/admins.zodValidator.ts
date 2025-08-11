@@ -387,6 +387,14 @@ const getBookedSeatsDataValidator = z.object({
   }),
 });
 
+const getRefundsValidator = z.object({
+  isMoneyRefunded: z
+    .enum(['true', 'false'], {
+      invalid_type_error: 'Is money refunded must be a true or false.',
+    })
+    .optional(),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -404,4 +412,5 @@ export {
   updateScheduleValidator,
   getTicketDataValidator,
   getBookedSeatsDataValidator,
+  getRefundsValidator,
 };
