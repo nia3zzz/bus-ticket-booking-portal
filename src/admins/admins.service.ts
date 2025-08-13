@@ -18,6 +18,7 @@ import {
   getBusesValidator,
   getBusValidator,
   getRefundsValidator,
+  getRefundValidator,
   getSchedulesValidator,
   getTicketDataValidator,
   getTripsValidator,
@@ -260,6 +261,38 @@ export interface GetRefundsOutputPropertyInterface {
   userFirstName: string | null;
   userLastName: string | null;
   totalPrice: number | null;
+  journeyDate: Date | null;
+}
+
+//type declaration for the interface of the Get Refund Service's data property in it's response body
+export interface GetRefundOutputPropertyInterface {
+  refundId: string;
+  ticketPdfUrl: string | null;
+  reason: string;
+  isMoneyRefunded: boolean;
+  refundedAt: Date;
+  bus: {
+    busId: string | null;
+    busRegistrationNumber: string | null;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+    busClass: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+    farePerTicket: number | null;
+    busPicture: string | null;
+  };
+  route: {
+    origin: string | null;
+    destination: string | null;
+  };
+  user: {
+    userId: string | null;
+    userFirstName: string | null;
+    userLastName: string | null;
+    userEmail: string | null;
+    userPhoneNumber: string | null;
+    userProfilePicture: string | null;
+  };
+  totalPrice: number | null;
+  paymentMethod: 'ONLINE' | 'CASH' | null;
   journeyDate: Date | null;
 }
 
@@ -2526,6 +2559,131 @@ export class AdminsService {
             };
           }),
         ),
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will let an admin get related data on provided refund id as url path parameter
+  async getRefundService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetRefundOutputPropertyInterface;
+  }> {
+    // validate the request parameter from the client
+    const validatedData = getRefundValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    //check if a refund exists with the provided refund id
+    const checkRefundExists: Refund | null =
+      await this.prisma.refund.findUnique({
+        where: {
+          id: validatedData.data.refundId,
+        },
+      });
+
+    if (!checkRefundExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No refund found with the provided refund id.',
+      });
+    }
+
+    // retrieve the ticket document from the refund document
+    const foundTicket: Ticket | null = await this.prisma.ticket.findUnique({
+      where: {
+        id: checkRefundExists.ticketId,
+      },
+    });
+
+    // retrieve the booking document from the ticket document
+    const foundBooking: Booking | null = await this.prisma.booking.findUnique({
+      where: {
+        id: foundTicket?.bookingId,
+      },
+    });
+
+    // retrieve the schedule document from the booking document
+    const foundSchedule: Schedule | null =
+      await this.prisma.schedule.findUnique({
+        where: {
+          id: foundBooking?.scheduleId,
+        },
+      });
+
+    // retrieve the bus document from the schedule document
+    const foundBus: Bus | null = await this.prisma.bus.findUnique({
+      where: {
+        id: foundSchedule?.busId,
+      },
+    });
+
+    // retrieve the route document from the schedule document
+    const foundRoute: Route | null = await this.prisma.route.findUnique({
+      where: {
+        id: foundSchedule?.routeId,
+      },
+    });
+
+    // retrieve the user document from the booking document
+    const foundUser: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: foundBooking?.userId,
+      },
+    });
+
+    // retrieve the payment document
+    const foundPayment: Payment | null = await this.prisma.payment.findFirst({
+      where: {
+        bookingId: foundBooking?.id,
+      },
+    });
+    try {
+      // return the data to the client in the required format as defined in the interface
+      return {
+        status: 'success',
+        message: 'Refund details retrieved successfully.',
+        data: {
+          refundId: checkRefundExists.id,
+          ticketPdfUrl: foundTicket?.ticketPdfUrl ?? null,
+          reason: checkRefundExists.reason,
+          isMoneyRefunded: checkRefundExists.isMoneyRefunded,
+          refundedAt: checkRefundExists.createdAt,
+          bus: {
+            busId: foundBus?.id ?? null,
+            busRegistrationNumber: foundBus?.busRegistrationNumber ?? null,
+            busType: foundBus?.busType ?? null,
+            busClass: foundBus?.class ?? null,
+            farePerTicket: foundBus?.farePerTicket ?? null,
+            busPicture: foundBus?.busPicture ?? null,
+          },
+          route: {
+            origin: foundRoute?.origin ?? null,
+            destination: foundRoute?.destination ?? null,
+          },
+          user: {
+            userId: foundUser?.id ?? null,
+            userFirstName: foundUser?.firstName ?? null,
+            userLastName: foundUser?.lastName ?? null,
+            userEmail: foundUser?.email ?? null,
+            userPhoneNumber: foundUser?.phoneNumber ?? null,
+            userProfilePicture: foundUser?.profilePicture ?? null,
+          },
+          totalPrice: foundBooking?.totalPrice ?? null,
+          paymentMethod: foundPayment?.method ?? null,
+          journeyDate: foundBooking?.journeyDate ?? null,
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({

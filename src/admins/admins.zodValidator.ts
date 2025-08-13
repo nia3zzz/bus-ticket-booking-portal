@@ -395,6 +395,15 @@ const getRefundsValidator = z.object({
     .optional(),
 });
 
+const getRefundValidator = z.object({
+  refundId: z
+    .string({
+      required_error: 'Refund id is required.',
+      invalid_type_error: 'Refund id must be a string.',
+    })
+    .length(36, 'Refund id must be 36 characters.'),
+});
+
 export {
   addDriverValidator,
   addRouteValidator,
@@ -413,4 +422,5 @@ export {
   getTicketDataValidator,
   getBookedSeatsDataValidator,
   getRefundsValidator,
+  getRefundValidator,
 };
