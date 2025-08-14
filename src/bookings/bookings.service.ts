@@ -255,7 +255,16 @@ export class BookingsService {
       const foundBookings: Booking[] | null =
         await this.prisma.booking.findMany({
           where: {
-            userId: request.foundExistingUser.id,
+            AND: [
+              {
+                userId: request.foundExistingUser.id,
+              },
+              {
+                status: {
+                  not: 'CANCELLED',
+                },
+              },
+            ],
           },
         });
 

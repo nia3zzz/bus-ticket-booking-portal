@@ -314,4 +314,14 @@ export class AdminsController {
   }> {
     return await this.adminsService.getRefundService(params);
   }
+
+  // defining a controller function that will mark an user's refund has been payed by the admin
+  @Put('/refunds/:refundId')
+  @UseGuards(AdminsGuard)
+  async updateMoneyRefund(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    return await this.adminsService.updateMoneyRefundService(params);
+  }
 }

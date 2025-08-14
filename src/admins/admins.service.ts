@@ -25,6 +25,7 @@ import {
   getTripValidator,
   startTripValidator,
   updateBusValidator,
+  updateMoneyRefundValidator,
   updateScheduleValidator,
   updateTripStatusValidator,
 } from './admins.zodValidator';
@@ -2684,6 +2685,109 @@ export class AdminsService {
           paymentMethod: foundPayment?.method ?? null,
           journeyDate: foundBooking?.journeyDate ?? null,
         },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will let an admin get a list of all users
+  async updateMoneyRefundService(params: any): Promise<{
+    status: string;
+    message: string;
+  }> {
+    // validate the path parameter from the client
+    const validatedData = updateMoneyRefundValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a refund exists with the provided refund id
+    const checkRefundExists: Refund | null =
+      await this.prisma.refund.findUnique({
+        where: {
+          id: validatedData.data.refundId,
+        },
+      });
+
+    if (!checkRefundExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No refund found with the provided refund id.',
+      });
+    }
+
+    // check if the money is already refunded
+    if (checkRefundExists.isMoneyRefunded) {
+      throw new ForbiddenException({
+        status: 'error',
+        message: 'The money has already been refunded.',
+      });
+    }
+    
+    try {
+      // retrieve the ticket document from the refund document
+      const foundTicket: Ticket | null = await this.prisma.ticket.findUnique({
+        where: {
+          id: checkRefundExists.ticketId,
+        },
+      });
+
+      // retrieve the booking document from the ticket document
+      const foundBooking: Booking | null = await this.prisma.booking.findUnique(
+        {
+          where: {
+            id: foundTicket?.bookingId,
+          },
+        },
+      );
+
+      // retrieve the booked seat document from the booking document
+      const foundBookedSeat: BookedSeat | null =
+        await this.prisma.bookedSeat.findFirst({
+          where: {
+            bookingId: foundBooking?.id,
+          },
+        });
+
+      // delete the user's booked seats to make them available once again
+      await this.prisma.bookedSeat.delete({
+        where: {
+          id: foundBookedSeat?.id,
+        },
+      });
+
+      // update the booking document status to cancled
+      await this.prisma.booking.update({
+        where: {
+          id: foundBooking?.id,
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      // update the refund document to mark the money as refunded
+      await this.prisma.refund.update({
+        where: {
+          id: checkRefundExists.id,
+        },
+        data: {
+          isMoneyRefunded: true,
+        },
+      });
+
+      return {
+        status: 'success',
+        message: `Please pay ${foundBooking?.totalPrice} to the client at counter.`,
       };
     } catch (error) {
       throw new InternalServerErrorException({
