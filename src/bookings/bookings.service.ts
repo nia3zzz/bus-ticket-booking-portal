@@ -8,6 +8,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   createBookingValidator,
+  getBookingsValidator,
   getBookingValidator,
 } from './bookings.zodValidator';
 import {
@@ -245,19 +246,54 @@ export class BookingsService {
   }
 
   //this controller function for bookings will retrieve all the booked seats made by the user
-  async getBookingsService(request: customExpressInterface): Promise<{
+  async getBookingsService(requestData: any): Promise<{
     status: string;
     message: string;
     data: GetBookingsOutputPropertyInterface[];
   }> {
+    // validate the request query of client
+    const validatedData = getBookingsValidator.safeParse(requestData.query);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        sttaus: 'success',
+        message: 'Failed in type validation.',
+        errors: validatedData.error,
+      });
+    }
+
     try {
-      // retrieve the user's bookings using their id
-      const foundBookings: Booking[] | null =
-        await this.prisma.booking.findMany({
+      // define a variable with type of an array of bookings or null and set the default value as an empty array
+      let foundBookings: Booking[] | null = [];
+
+      // set the foundBooking variable according to the client sent queries
+      if (
+        validatedData.data.refunded &&
+        validatedData.data.refunded === 'true'
+      ) {
+        // retrieve the user's bookings using their id
+        foundBookings = await this.prisma.booking.findMany({
           where: {
             AND: [
               {
-                userId: request.foundExistingUser.id,
+                userId: requestData.request.foundExistingUser.id,
+              },
+              {
+                status: 'CANCELLED',
+              },
+            ],
+          },
+        });
+      } else if (
+        validatedData.data.refunded === 'false' ||
+        !validatedData.data.refunded
+      ) {
+        // retrieve the user's bookings using their id
+        foundBookings = await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                userId: requestData.request.foundExistingUser.id,
               },
               {
                 status: {
@@ -267,6 +303,7 @@ export class BookingsService {
             ],
           },
         });
+      }
 
       return {
         status: 'success',
@@ -308,7 +345,7 @@ export class BookingsService {
               destination: foundRoute?.destination ?? null,
               estimatedDepertureTimeDate:
                 foundSchedule?.estimatedDepartureTimeDate ?? null,
-              totalSeats: bookedSeatObj.length ?? 0,
+              totalSeats: bookedSeatObj?.length ?? 0,
             };
           }),
         ),

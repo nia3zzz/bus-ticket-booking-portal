@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -35,12 +36,15 @@ export class BookingsController {
   //this controller function for bookings will retrieve all the booked seats made by the user
   @Get('/bookings')
   @UseGuards(AuthGuard)
-  async getBookings(@Request() request: customExpressInterface): Promise<{
+  async getBookings(
+    @Request() request: customExpressInterface,
+    @Query() query: any,
+  ): Promise<{
     status: string;
     message: string;
     data: GetBookingsOutputPropertyInterface[];
   }> {
-    return this.bookingsService.getBookingsService(request);
+    return this.bookingsService.getBookingsService({ request, query });
   }
 
   // this controller function for bookings will retrieve a unique booking of the user using the booking id provided by the user

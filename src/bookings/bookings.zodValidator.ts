@@ -23,6 +23,14 @@ const createBookingValidator = z.object({
   ),
 });
 
+const getBookingsValidator = z.object({
+  refunded: z
+    .enum(['true', 'false'], {
+      invalid_type_error: 'Is refunded must be a true or false.',
+    })
+    .optional(),
+});
+
 const getBookingValidator = z.object({
   bookingId: z
     .string({
@@ -32,4 +40,4 @@ const getBookingValidator = z.object({
     .length(36, 'Booking id must be 36 characters.'),
 });
 
-export { createBookingValidator, getBookingValidator };
+export { createBookingValidator, getBookingValidator, getBookingsValidator };
