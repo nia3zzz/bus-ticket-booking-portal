@@ -1,12 +1,21 @@
 import { z } from 'zod';
 
+const getUserValidator = z.object({
+  userId: z
+    .string({
+      required_error: 'User id is required.',
+      invalid_type_error: 'User id must be a string.',
+    })
+    .length(36, 'User id must be 36 characters.'),
+});
+
 const addDriverValidator = z.object({
   driverId: z
     .string({
       required_error: 'Driver id is required.',
       invalid_type_error: 'Driver id must be a string.',
     })
-    .length(36, 'User id must be 36 characters.'),
+    .length(36, 'Driver id must be 36 characters.'),
 });
 
 const addRouteValidator = z.object({
@@ -414,6 +423,7 @@ const updateMoneyRefundValidator = z.object({
 });
 
 export {
+  getUserValidator,
   addDriverValidator,
   addRouteValidator,
   deleteRouteValidator,

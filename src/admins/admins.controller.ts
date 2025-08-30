@@ -24,6 +24,7 @@ import {
   GetBookedSeatsDataOutputPropertyInterface,
   GetRefundsOutputPropertyInterface,
   GetRefundOutputPropertyInterface,
+  GetUserOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -39,6 +40,17 @@ import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
 @Controller('admins')
 export class AdminsController {
   constructor(private adminsService: AdminsService) {}
+
+  //  defining a controller function that is tasked to retrieve basic user info through their unique id
+  @Get('/users/:userId')
+  @UseGuards(AdminsGuard)
+  async getUser(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetUserOutputPropertyInterface;
+  }> {
+    return this.adminsService.getUserService(params);
+  }
 
   // defining controller function for the route of giving driver's role to user after verification completed
   @Post('/drivers/:driverId')

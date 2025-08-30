@@ -23,6 +23,7 @@ import {
   getTicketDataValidator,
   getTripsValidator,
   getTripValidator,
+  getUserValidator,
   startTripValidator,
   updateBusValidator,
   updateMoneyRefundValidator,
@@ -297,6 +298,35 @@ export interface GetRefundOutputPropertyInterface {
   journeyDate: Date | null;
 }
 
+// type declaration for the interface of Get User Service's data property in it's response body
+export interface GetUserOutputPropertyInterface {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string;
+    profilePicture: string;
+    role: 'PASSENGER' | 'DRIVER' | 'ADMIN' | 'STAFF';
+    isVerified: boolean;
+    joinedOn: Date;
+  };
+  bookings: {
+    bookingId: string;
+    origin: string | null;
+    destination: string | null;
+    bookedSeats: number;
+    bookedOn: Date;
+  }[];
+  refund: {
+    refundId: string | null;
+    reason: string | null;
+    amount: number;
+  }[];
+  totalMoneySpent: number;
+  totalRefundMade: number;
+}
+
 // declaring a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
 const NONE_AC_BUS_ECONOMY_CLASS_SEATS: { [key: number]: string } = {
   1: '1A',
@@ -463,6 +493,175 @@ const SLEEPER_BUS_FIRST_CLASS_SEATS: { [key: number]: string } = {
 @Injectable()
 export class AdminsService {
   constructor(private prisma: PrismaService) {}
+
+  //  defining a controller function that is tasked to retrieve basic user info through their unique id
+  async getUserService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetUserOutputPropertyInterface;
+  }> {
+    // validate the request param provided in url param
+    const validatedData = getUserValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a user exists with the provided user id
+    const checkUserExists: User | null = await this.prisma.user.findUnique({
+      where: {
+        id: validatedData.data.userId,
+      },
+    });
+
+    if (!checkUserExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: 'No user found with provided user id.',
+      });
+    }
+
+    try {
+      // get all the bookings data of the user
+      const retrievedBookingsOfUser: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                userId: checkUserExists.id,
+              },
+              {
+                status: {
+                  not: 'CANCELLED',
+                },
+              },
+            ],
+          },
+        });
+
+      // get only the canceled or refunded bookings of the user
+      const refundedRetrievedBookingsOfUser: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                userId: checkUserExists.id,
+              },
+              {
+                status: 'CANCELLED',
+              },
+            ],
+          },
+        });
+
+      // return the data in the structure of the defined interface
+      return {
+        status: 'success',
+        message: 'User has been retrieved successfully.',
+        data: {
+          user: {
+            id: checkUserExists.id,
+            firstName: checkUserExists.firstName,
+            lastName: checkUserExists.lastName,
+            email: checkUserExists.email,
+            phoneNumber: checkUserExists.phoneNumber,
+            profilePicture: checkUserExists.profilePicture,
+            role: checkUserExists.role,
+            isVerified: checkUserExists.isVerified,
+            joinedOn: checkUserExists.createdAt,
+          },
+
+          bookings: await Promise.all(
+            retrievedBookingsOfUser.map(async (bookingDocument) => {
+              // retrieve the schedule from the booking document
+              const foundSchedule: Schedule | null =
+                await this.prisma.schedule.findUnique({
+                  where: {
+                    id: bookingDocument.scheduleId,
+                  },
+                });
+
+              // retrieve the route from the schedule document
+              const foundRoute: Route | null =
+                await this.prisma.route.findUnique({
+                  where: {
+                    id: foundSchedule?.routeId,
+                  },
+                });
+
+              // retrieve the booked seats document
+              const foundBookedSeats: BookedSeat | null =
+                await this.prisma.bookedSeat.findFirst({
+                  where: {
+                    bookingId: bookingDocument.id,
+                  },
+                });
+
+              //set the type for the seats as its set as a jsonvalue that could of any type
+              const bookedSeatObj = foundBookedSeats?.seatNumbers as [
+                string,
+                string,
+              ][];
+
+              return {
+                bookingId: bookingDocument.id,
+                origin: foundRoute?.origin ?? null,
+                destination: foundRoute?.destination ?? null,
+                bookedSeats: bookedSeatObj.length ?? 0,
+                bookedOn: bookingDocument.createdAt,
+              };
+            }),
+          ),
+
+          refund: await Promise.all(
+            refundedRetrievedBookingsOfUser.map(
+              async (refundedBookingDocument) => {
+                // retrieve the ticket for each of the refunded booking documents
+                const foundTicket: Ticket | null =
+                  await this.prisma.ticket.findFirst({
+                    where: {
+                      bookingId: refundedBookingDocument.id,
+                    },
+                  });
+
+                // retrieve the refund document from the ticket document id
+                const foundRefund: Refund | null =
+                  await this.prisma.refund.findFirst({
+                    where: {
+                      ticketId: foundTicket?.id,
+                    },
+                  });
+                return {
+                  refundId: foundRefund?.id ?? null,
+                  reason: foundRefund?.reason ?? null,
+                  amount: refundedBookingDocument.totalPrice ?? 0,
+                };
+              },
+            ),
+          ),
+
+          totalMoneySpent: retrievedBookingsOfUser.reduce(
+            (sum, booking) => sum + (booking.totalPrice ?? 0),
+            0,
+          ),
+
+          totalRefundMade: refundedRetrievedBookingsOfUser.reduce(
+            (sum, booking) => sum + (booking.totalPrice ?? 0),
+            0,
+          ),
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
 
   // create driver service for adding a role of a driver to a user after they have done authentication and other measures
   async addDriverService(
@@ -2732,7 +2931,7 @@ export class AdminsService {
         message: 'The money has already been refunded.',
       });
     }
-    
+
     try {
       // retrieve the ticket document from the refund document
       const foundTicket: Ticket | null = await this.prisma.ticket.findUnique({
