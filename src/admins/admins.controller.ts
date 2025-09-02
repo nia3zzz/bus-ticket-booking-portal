@@ -25,6 +25,7 @@ import {
   GetRefundsOutputPropertyInterface,
   GetRefundOutputPropertyInterface,
   GetUserOutputPropertyInterface,
+  GetBookingDataOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -335,5 +336,16 @@ export class AdminsController {
     message: string;
   }> {
     return await this.adminsService.updateMoneyRefundService(params);
+  }
+
+  // defining a controller function that will retrieve the booking details from the provided booking id in url parameter
+  @Get('/bookings/:bookingId')
+  @UseGuards(AdminsGuard)
+  async getBookingData(@Param() params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBookingDataOutputPropertyInterface;
+  }> {
+    return this.adminsService.getBookingDataService(params);
   }
 }

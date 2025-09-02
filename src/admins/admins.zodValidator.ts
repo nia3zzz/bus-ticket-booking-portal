@@ -422,6 +422,15 @@ const updateMoneyRefundValidator = z.object({
     .length(36, 'Refund id must be 36 characters.'),
 });
 
+const getBookingDataValidator = z.object({
+  bookingId: z
+    .string({
+      required_error: 'Booking id is required.',
+      invalid_type_error: 'Booking id must be a string.',
+    })
+    .length(36, 'Booking id must be 36 characters.'),
+});
+
 export {
   getUserValidator,
   addDriverValidator,
@@ -443,4 +452,5 @@ export {
   getRefundsValidator,
   getRefundValidator,
   updateMoneyRefundValidator,
+  getBookingDataValidator,
 };

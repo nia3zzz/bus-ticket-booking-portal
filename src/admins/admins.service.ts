@@ -15,6 +15,7 @@ import {
   createScheduleValidator,
   deleteRouteValidator,
   getBookedSeatsDataValidator,
+  getBookingDataValidator,
   getBusesValidator,
   getBusValidator,
   getRefundsValidator,
@@ -325,6 +326,43 @@ export interface GetUserOutputPropertyInterface {
   }[];
   totalMoneySpent: number;
   totalRefundMade: number;
+}
+
+// type declaration for the interface of Get Booking Data's data property in it's response body
+export interface GetBookingDataOutputPropertyInterface {
+  user: {
+    userId: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    profilePicture: string | null;
+  };
+  bus: {
+    busId: string | null;
+    busRegistrationNumber: string | null;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+    busClass: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+    driver: {
+      driverId: string | null;
+      driverFirstName: string | null;
+      driverLastName: string | null;
+      driverProfilePicture: string | null;
+      driverPhoneNumber: string | null;
+    };
+  };
+  origin: string | null;
+  destination: string | null;
+  estimatedDepartureTime: Date | null;
+  estimatedArivalTime: Date | null;
+  booking: {
+    bookingId: string;
+    totalPrice: number;
+    status: 'PENDING' | 'PAID' | 'CANCELLED';
+    journeyDate: Date;
+    seatNumbers: JsonValue | null;
+    ticketPdfUrl: string | null;
+  };
 }
 
 // declaring a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
@@ -2987,6 +3025,150 @@ export class AdminsService {
       return {
         status: 'success',
         message: `Please pay ${foundBooking?.totalPrice} to the client at counter.`,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller function that will retrieve the booking details from the provided booking id in url parameter
+  async getBookingDataService(params: any): Promise<{
+    status: string;
+    message: string;
+    data: GetBookingDataOutputPropertyInterface;
+  }> {
+    // validate the url path variables
+    const validatedData = getBookingDataValidator.safeParse(params);
+
+    if (!validatedData.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedData.error.errors,
+      });
+    }
+
+    // check if a booking document exists with the provided document id
+    const checkBookingDocumentExists: Booking | null =
+      await this.prisma.booking.findUnique({
+        where: {
+          id: validatedData.data.bookingId,
+        },
+      });
+
+    if (!checkBookingDocumentExists) {
+      throw new NotFoundException({
+        status: 'error',
+        message: ' No booking found with the provided booking id.',
+      });
+    }
+
+    try {
+      // retrieve the user document from the booking document's user id foreign key
+      const retrievedUser: User | null = await this.prisma.user.findUnique({
+        where: {
+          id: checkBookingDocumentExists.userId,
+        },
+      });
+
+      // retrieve the schedule document from the booking document
+      const retrievedSchedule: Schedule | null =
+        await this.prisma.schedule.findUnique({
+          where: {
+            id: checkBookingDocumentExists.scheduleId,
+          },
+        });
+
+      // retrieve the bus document from the schedule document
+      const retrievedBus: Bus | null = await this.prisma.bus.findUnique({
+        where: {
+          id: retrievedSchedule?.busId,
+        },
+      });
+
+      // retrieve the driver from the bus document
+      const retrievedDriver: User | null = await this.prisma.user.findUnique({
+        where: {
+          id: retrievedBus?.driverId,
+        },
+      });
+
+      // retrieve the route document from the schedule document
+      const retrievedRoute: Route | null = await this.prisma.route.findUnique({
+        where: {
+          id: retrievedSchedule?.routeId,
+        },
+      });
+
+      // retrieve the booked seat document from the booking document
+      const retrievedBookedSeat: BookedSeat | null =
+        await this.prisma.bookedSeat.findFirst({
+          where: {
+            bookingId: checkBookingDocumentExists.id,
+          },
+        });
+
+      // retrieve the ticket document from the booking document
+      const retrievedTicket: Ticket | null = await this.prisma.ticket.findFirst(
+        {
+          where: {
+            bookingId: checkBookingDocumentExists.id,
+          },
+        },
+      );
+
+      // retrieve the payment document from the booking document
+      const retrievedPayment: Payment | null =
+        await this.prisma.payment.findFirst({
+          where: {
+            bookingId: checkBookingDocumentExists.id,
+          },
+        });
+
+      // return the data in proper type format
+      return {
+        status: 'success',
+        message: 'Booking data retrieved successfully.',
+        data: {
+          user: {
+            userId: retrievedUser?.id ?? null,
+            firstName: retrievedUser?.firstName ?? null,
+            lastName: retrievedUser?.lastName ?? null,
+            email: retrievedUser?.email ?? null,
+            phoneNumber: retrievedUser?.phoneNumber ?? null,
+            profilePicture: retrievedUser?.profilePicture ?? null,
+          },
+          bus: {
+            busId: retrievedBus?.id ?? null,
+            busRegistrationNumber: retrievedBus?.busRegistrationNumber ?? null,
+            busType: retrievedBus?.busType ?? null,
+            busClass: retrievedBus?.class ?? null,
+            driver: {
+              driverId: retrievedDriver?.id ?? null,
+              driverFirstName: retrievedDriver?.firstName ?? null,
+              driverLastName: retrievedDriver?.lastName ?? null,
+              driverProfilePicture: retrievedDriver?.profilePicture ?? null,
+              driverPhoneNumber: retrievedDriver?.phoneNumber ?? null,
+            },
+          },
+          origin: retrievedRoute?.origin ?? null,
+          destination: retrievedRoute?.destination ?? null,
+          estimatedDepartureTime:
+            retrievedSchedule?.estimatedDepartureTimeDate ?? null,
+          estimatedArivalTime:
+            retrievedSchedule?.estimatedArrivalTimeDate ?? null,
+          booking: {
+            bookingId: checkBookingDocumentExists.id,
+            totalPrice: checkBookingDocumentExists.totalPrice,
+            status: checkBookingDocumentExists.status,
+            journeyDate: checkBookingDocumentExists.journeyDate,
+            seatNumbers: retrievedBookedSeat?.seatNumbers ?? null,
+            ticketPdfUrl: retrievedTicket?.ticketPdfUrl ?? null,
+          },
+        },
       };
     } catch (error) {
       throw new InternalServerErrorException({
