@@ -172,6 +172,11 @@ const startTripValidator = z.object({
       invalid_type_error: 'Schedule id must be a string.',
     })
     .length(36, 'Schedule id must be 36 characters.'),
+
+  journeyDate: z.coerce.date({
+    required_error: 'Journey date is required.',
+    invalid_type_error: 'Journey date must be a date.',
+  }),
 });
 
 const getTripsValidator = z

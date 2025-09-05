@@ -14,7 +14,17 @@ import {
   updateProfileValidator,
   verifyEmailValidator,
 } from './users.zodValidator';
-import { Bus, Schedule, User, Verifications } from '@prisma/client';
+import {
+  BookedSeat,
+  Booking,
+  Bus,
+  Refund,
+  Route,
+  Schedule,
+  Ticket,
+  User,
+  Verifications,
+} from '@prisma/client';
 import * as argon2 from 'argon2';
 import { cloudinaryConfig, uploadedImageInterface } from 'src/cloudinaryConfig';
 import { SendMailToVerifyEmailWithCode } from 'src/nodemailerMailFunctions';
@@ -38,6 +48,51 @@ export interface GetDriverOutputDataPropertyInterfaceClient {
     busPicture: string | null;
   };
   totalTrips: number;
+}
+
+//defining a type interface for the get profile dashboard's data property on it's response body
+export interface UserProfileDashboardOutputDataPropertyInterface {
+  user: {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string;
+    profilePicture: string;
+    role: 'PASSENGER' | 'DRIVER' | 'ADMIN' | 'STAFF';
+    isVerified: boolean;
+    joinedOn: Date;
+  };
+  bookings: {
+    tripCompletedBookings: {
+      id: string;
+      origin: string | null;
+      destination: string | null;
+      journeyDate: Date;
+    }[];
+    TripInProgressBookings: {
+      id: string;
+      busRegistrationNumber: string | null;
+      busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+      class: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+      numberOfSeats: number;
+      origin: string | null;
+      destination: string | null;
+      paymentStatus: 'SUCCESS' | 'REFUNDED' | null;
+      journeyDate: Date;
+    }[];
+  };
+  refunds: {
+    refundId: string | null;
+    reason: string | null;
+    isMoneyRefunded: boolean | null;
+    id: string;
+    origin: string | null;
+    destination: string | null;
+    status: 'PENDING' | 'PAID' | 'CANCELLED';
+    refundAmount: number;
+    journeyDate: Date;
+  }[];
 }
 
 @Injectable()
@@ -303,6 +358,224 @@ export class UsersService {
 
       return true;
     } catch {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // the get profile dashboard controller that will retrieve the data of user, booking and refunds to send it to the client in defined format
+  async userProfileDashboardService(request: customExpressInterface): Promise<{
+    status: string;
+    message: string;
+    data: UserProfileDashboardOutputDataPropertyInterface;
+  }> {
+    // no need to retrieve the user as the user will be attached in the req object in the auth guard
+
+    // retrieve the trip completed bookings of the user
+    const tripCompletedBookings: Booking[] | null =
+      await this.prisma.booking.findMany({
+        where: {
+          AND: [
+            { userId: request.foundExistingUser.id },
+            { isTripCompleted: true },
+          ],
+        },
+      });
+
+    // retrieve the trip in progress bookings of the user
+    const tripInProgressBookings: Booking[] | null =
+      await this.prisma.booking.findMany({
+        where: {
+          AND: [
+            {
+              userId: request.foundExistingUser.id,
+            },
+            {
+              status: {
+                not: 'CANCELLED',
+              },
+            },
+            {
+              isTripCompleted: {
+                equals: false,
+              },
+            },
+          ],
+        },
+      });
+
+    // retrieve the refund booking documents of the user
+    const refundBookings: Booking[] | null = await this.prisma.booking.findMany(
+      {
+        where: {
+          AND: [
+            {
+              userId: request.foundExistingUser.id,
+            },
+            {
+              status: 'CANCELLED',
+            },
+          ],
+        },
+      },
+    );
+
+    try {
+      return {
+        status: 'success',
+        message: 'User profile data fetched successfully.',
+        data: {
+          user: {
+            userId: request.foundExistingUser.id,
+            firstName: request.foundExistingUser.firstName,
+            lastName: request.foundExistingUser.lastName,
+            email: request.foundExistingUser.email,
+            phoneNumber: request.foundExistingUser.phoneNumber,
+            profilePicture: request.foundExistingUser.profilePicture,
+            role: request.foundExistingUser.role,
+            isVerified: request.foundExistingUser.isVerified,
+            joinedOn: request.foundExistingUser.createdAt,
+          },
+          bookings: {
+            tripCompletedBookings: await Promise.all(
+              tripCompletedBookings.map(async (completedBooking) => {
+                // retrieve the schedule document for each of the bookings
+                const foundSchedule: Schedule | null =
+                  await this.prisma.schedule.findUnique({
+                    where: {
+                      id: completedBooking.scheduleId,
+                    },
+                  });
+
+                // retrieve the route document from the schedule
+                const foundRoute: Route | null =
+                  await this.prisma.route.findUnique({
+                    where: {
+                      id: foundSchedule?.routeId,
+                    },
+                  });
+
+                return {
+                  id: completedBooking.id,
+                  origin: foundRoute?.origin ?? null,
+                  destination: foundRoute?.destination ?? null,
+                  journeyDate: completedBooking.journeyDate,
+                };
+              }),
+            ),
+            TripInProgressBookings: await Promise.all(
+              tripInProgressBookings.map(async (tripInProgressBooking) => {
+                // retrieve the schedule document for each of the bookings
+                const foundSchedule: Schedule | null =
+                  await this.prisma.schedule.findUnique({
+                    where: {
+                      id: tripInProgressBooking.scheduleId,
+                    },
+                  });
+
+                // retrieve the bus document from the schedule
+                const foundBus: Bus | null = await this.prisma.bus.findUnique({
+                  where: {
+                    id: foundSchedule?.busId,
+                  },
+                });
+
+                // retrieve the route document from the schedule
+                const foundRoute: Route | null =
+                  await this.prisma.route.findUnique({
+                    where: {
+                      id: foundSchedule?.routeId,
+                    },
+                  });
+
+                // retrieve the booked seats document using the booking document
+                const foundBookedSeats: BookedSeat | null =
+                  await this.prisma.bookedSeat.findFirst({
+                    where: {
+                      bookingId: tripInProgressBooking.id,
+                    },
+                  });
+
+                // retrieve the payment document from the booking document
+                const foundPayment = await this.prisma.payment.findFirst({
+                  where: {
+                    bookingId: tripInProgressBooking.id,
+                  },
+                });
+
+                //set the type for the seats as its set as a jsonvalue that could of any type
+                const bookedSeatObj = foundBookedSeats?.seatNumbers as [
+                  string,
+                  string,
+                ][];
+
+                return {
+                  id: tripInProgressBooking.id,
+                  busRegistrationNumber:
+                    foundBus?.busRegistrationNumber ?? null,
+                  busType: foundBus?.busType ?? null,
+                  class: foundBus?.class ?? null,
+                  numberOfSeats: bookedSeatObj?.length ?? 0,
+                  origin: foundRoute?.origin ?? null,
+                  destination: foundRoute?.destination ?? null,
+                  paymentStatus: foundPayment?.status ?? null,
+                  journeyDate: tripInProgressBooking.journeyDate,
+                };
+              }),
+            ),
+          },
+          refunds: await Promise.all(
+            refundBookings.map(async (refundBooking) => {
+              // retrieve the schedule document for each of the bookings
+              const foundSchedule: Schedule | null =
+                await this.prisma.schedule.findUnique({
+                  where: {
+                    id: refundBooking.scheduleId,
+                  },
+                });
+
+              // retrieve the route document from the schedule
+              const foundRoute: Route | null =
+                await this.prisma.route.findUnique({
+                  where: {
+                    id: foundSchedule?.routeId,
+                  },
+                });
+
+              // retrieve the ticket document using the booking id
+              const foundTicket: Ticket | null =
+                await this.prisma.ticket.findFirst({
+                  where: {
+                    bookingId: refundBooking.id,
+                  },
+                });
+
+              // retrieve the refund document from the ticket id
+              const foundRefund: Refund | null =
+                await this.prisma.refund.findFirst({
+                  where: {
+                    ticketId: foundTicket?.id,
+                  },
+                });
+
+              return {
+                refundId: foundRefund?.id ?? null,
+                reason: foundRefund?.reason ?? null,
+                isMoneyRefunded: foundRefund?.isMoneyRefunded ?? null,
+                id: refundBooking.id,
+                origin: foundRoute?.origin ?? null,
+                destination: foundRoute?.destination ?? null,
+                status: refundBooking.status,
+                refundAmount: refundBooking.totalPrice,
+                journeyDate: refundBooking.journeyDate,
+              };
+            }),
+          ),
+        },
+      };
+    } catch (error) {
       throw new InternalServerErrorException({
         status: 'error',
         message: 'Something went wrong.',

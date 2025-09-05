@@ -121,29 +121,31 @@ model Schedule {
 
 // the schema model called trips will be used to store the information of status, route, schedule and driver and bus information of journy buses
 model Trip {
-  id         String          @id @default(uuid())
-  schedule   Schedule        @relation(fields: [scheduleId], references: [id])
-  scheduleId String
-  status     TripStatusTypes
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id          String          @id @default(uuid())
+  schedule    Schedule        @relation(fields: [scheduleId], references: [id])
+  scheduleId  String
+  journeyDate DateTime
+  status      TripStatusTypes
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 // the booking model will hold the information user id, schedule id, total price of the booked seats, status of the booking and more
 model Booking {
-  id          String             @id @default(uuid())
-  user        User               @relation(fields: [userId], references: [id])
-  userId      String
-  schedule    Schedule           @relation(fields: [scheduleId], references: [id])
-  scheduleId  String
-  totalPrice  Int
-  status      BookingStatusTypes
-  journeyDate DateTime
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  BookedSeat  BookedSeat[]
-  Payment     Payment[]
-  Ticket      Ticket[]
+  id              String             @id @default(uuid())
+  user            User               @relation(fields: [userId], references: [id])
+  userId          String
+  schedule        Schedule           @relation(fields: [scheduleId], references: [id])
+  scheduleId      String
+  totalPrice      Int
+  status          BookingStatusTypes
+  journeyDate     DateTime
+  isTripCompleted Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  BookedSeat      BookedSeat[]
+  Payment         Payment[]
+  Ticket          Ticket[]
 }
 
 // the booking seat models saves the data of the booked seats with columns like the bookingid and seatnumber this model is neccessary for keeping tracks of seat data

@@ -1666,10 +1666,22 @@ export class AdminsService {
     }
 
     try {
+      // update all the booking's isTripCompleted property to true as the journey has started
+      await this.prisma.booking.updateMany({
+        where: {
+          scheduleId: validatedData.data.scheduleId,
+          journeyDate: validatedData.data.journeyDate,
+        },
+        data: {
+          isTripCompleted: true,
+        },
+      });
+
       // create a trip in database
       await this.prisma.trip.create({
         data: {
           scheduleId: validatedData.data.scheduleId,
+          journeyDate: validatedData.data.journeyDate,
           status: 'PENDING',
         },
       });

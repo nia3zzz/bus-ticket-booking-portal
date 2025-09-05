@@ -66,6 +66,7 @@ export interface GetBookingOutputPropertyInterface {
   };
   bookedseats: JsonValue | null;
   totalPrice: number;
+  isTripCompleted: boolean;
   paymentStatus: 'PENDING' | 'PAID' | 'CANCELLED';
   journeyDate: Date;
   createdAt: Date;
@@ -465,6 +466,7 @@ export class BookingsService {
           },
           bookedseats: foundBookedSeats?.seatNumbers ?? null,
           totalPrice: checkBookingExists.totalPrice,
+          isTripCompleted: checkBookingExists.isTripCompleted,
           paymentStatus: checkBookingExists.status,
           journeyDate: checkBookingExists.journeyDate,
           createdAt: checkBookingExists.createdAt,

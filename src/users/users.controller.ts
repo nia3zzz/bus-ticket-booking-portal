@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   GetDriverOutputDataPropertyInterfaceClient,
+  UserProfileDashboardOutputDataPropertyInterface,
   UsersService,
 } from './users.service';
 import { FormDataRequest, FileSystemStoredFile } from 'nestjs-form-data';
@@ -74,6 +75,17 @@ export class UsersController {
       status: 'success',
       message: 'User has been logged out.',
     });
+  }
+
+  // the get profile dashboard controller that will retrieve the data of user, booking and refunds to send it to the client in defined format
+  @Get('/profile')
+  @UseGuards(AuthGuard)
+  async userProfileDashboard(@Req() request: customExpressInterface): Promise<{
+    status: string;
+    message: string;
+    data: UserProfileDashboardOutputDataPropertyInterface;
+  }> {
+    return this.usersService.userProfileDashboardService(request);
   }
 
   // the update profile controller takes in data of the user's profile for updating based on the client request and the userid
