@@ -26,6 +26,7 @@ import {
   GetRefundOutputPropertyInterface,
   GetUserOutputPropertyInterface,
   GetBookingDataOutputPropertyInterface,
+  FinancialDashboardOutputPropertyInterface,
 } from './admins.service';
 import { AdminsGuard } from './admins.guard';
 import {
@@ -347,5 +348,16 @@ export class AdminsController {
     data: GetBookingDataOutputPropertyInterface;
   }> {
     return this.adminsService.getBookingDataService(params);
+  }
+
+  // defining a controller that will return all data related to  detailed finances of the month for the admin
+  @Get('/finances')
+  @UseGuards(AdminsGuard)
+  async financialDashboard(@Query() requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: FinancialDashboardOutputPropertyInterface;
+  }> {
+    return await this.adminsService.financialDashboardService(requestQueries);
   }
 }

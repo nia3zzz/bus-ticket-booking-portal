@@ -436,6 +436,24 @@ const getBookingDataValidator = z.object({
     .length(36, 'Booking id must be 36 characters.'),
 });
 
+const financialDashboardValidator = z.object({
+  month: z.coerce
+    .number({
+      invalid_type_error: 'Month must be a number.',
+    })
+    .min(0, 'Month must be between 0 and 11.')
+    .max(11, 'Month must be between 0 and 11.')
+    .optional(),
+
+  year: z.coerce
+    .number({
+      invalid_type_error: 'Year must be a number.',
+    })
+    .min(2000, 'Year must be between 2000 and 2100.')
+    .max(2100, 'Year must be between 2000 and 2100.')
+    .optional(),
+});
+
 export {
   getUserValidator,
   addDriverValidator,
@@ -458,4 +476,5 @@ export {
   getRefundValidator,
   updateMoneyRefundValidator,
   getBookingDataValidator,
+  financialDashboardValidator,
 };

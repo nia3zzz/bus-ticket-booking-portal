@@ -14,6 +14,7 @@ import {
   createBusValidator,
   createScheduleValidator,
   deleteRouteValidator,
+  financialDashboardValidator,
   getBookedSeatsDataValidator,
   getBookingDataValidator,
   getBusesValidator,
@@ -362,6 +363,40 @@ export interface GetBookingDataOutputPropertyInterface {
     journeyDate: Date;
     seatNumbers: JsonValue | null;
     ticketPdfUrl: string | null;
+  };
+}
+
+// type declaration for the interface of Financial Dashboard Service's data property in it's response body
+export interface FinancialDashboardOutputPropertyInterface {
+  reportTime: {
+    from: Date;
+    to: Date;
+  };
+  kpis: {
+    totalRevenue: number;
+    totalBookings: number;
+    confirmed: number;
+    refunds: number;
+    seatOccupancyRate: number;
+  };
+  revenue: {
+    topRoutes: {
+      scheduleId: string | null;
+      origin: string | null;
+      destination: string | null;
+      totalRevenue: number;
+      totalBookings: number;
+    }[];
+    revenueComparedToPreviousMonth: number;
+  };
+  paymentMetaData: {
+    numberOfCashPayment: number;
+    numberOfOnlinePayment: number;
+  };
+  refundMetaData: {
+    count: number;
+    totalAmount: number;
+    commonReasons: string[];
   };
 }
 
@@ -3179,6 +3214,316 @@ export class AdminsService {
             journeyDate: checkBookingDocumentExists.journeyDate,
             seatNumbers: retrievedBookedSeat?.seatNumbers ?? null,
             ticketPdfUrl: retrievedTicket?.ticketPdfUrl ?? null,
+          },
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller that will return all data related to  detailed finances of the month for the admin
+  async financialDashboardService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: FinancialDashboardOutputPropertyInterface;
+  }> {
+    // validate the request queries
+    const validatedQueries =
+      financialDashboardValidator.safeParse(requestQueries);
+
+    if (!validatedQueries.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedQueries.error.errors,
+      });
+    }
+    try {
+      // hold variables for the reporting times
+      const currYear: number =
+        validatedQueries.data.year ?? new Date().getFullYear();
+
+      const currMonth: number =
+        validatedQueries.data.month ?? new Date().getMonth();
+
+      const reportTimeFrom: Date = new Date(currYear, currMonth, 1);
+
+      const reportTimeTo: Date = new Date(
+        currYear,
+        currMonth + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      // retrieve all the bookings of the month
+      const retrievedBookingsCurrMonth: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                createdAt: {
+                  gte: reportTimeFrom.toISOString(),
+                },
+              },
+              {
+                createdAt: {
+                  lte: reportTimeTo.toISOString(),
+                },
+              },
+            ],
+          },
+        });
+
+      // get the occupancy rate for the busses of the month as percentage using simple math
+      const bookedSeatsCurrMonth: BookedSeat[] | null =
+        await this.prisma.bookedSeat.findMany({
+          where: {
+            booking: {
+              AND: [
+                {
+                  createdAt: {
+                    gte: reportTimeFrom.toISOString(),
+                  },
+                },
+                {
+                  createdAt: {
+                    lte: reportTimeTo.toISOString(),
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+      // retrieve the number of booked seats of this month
+      const numberOfBookedSeatsCurrMonth: number = bookedSeatsCurrMonth.reduce(
+        (total, bookedSeat) =>
+          total + ((bookedSeat.seatNumbers as [string, string][])?.length ?? 0),
+        0,
+      );
+
+      // retrieve the total bus seats number this month
+      let numberOfAvailableSeatsCurrMonth: number = 0;
+
+      // differenciate the payment methods and hold them in 2 variables
+      let numberOfCashPayment: number = 0;
+      let numberOfOnlinePayment: number = 0;
+
+      // calculate the total amount and count of the refunded documents
+      let totalAmountOfRefund: number = 0;
+
+      for (const booking of retrievedBookingsCurrMonth) {
+        // retrieve the schedule document from the booking document
+        const foundSchedule: Schedule | null =
+          await this.prisma.schedule.findUnique({
+            where: {
+              id: booking.scheduleId,
+            },
+          });
+
+        // retrieve the bus document from the schedule document
+        const foundBus: Bus | null = await this.prisma.bus.findUnique({
+          where: {
+            id: foundSchedule?.busId,
+          },
+        });
+
+        numberOfAvailableSeatsCurrMonth +=
+          Object.keys(foundBus?.seats as [string, string][]).length ?? 0;
+
+        // retrieve the payment for the booking
+        const foundPayment: Payment | null =
+          await this.prisma.payment.findFirst({
+            where: {
+              bookingId: booking.id,
+            },
+          });
+
+        // populate counting variables based on property value
+        if (foundPayment?.method === 'CASH') {
+          numberOfCashPayment += 1;
+        } else if (foundPayment?.method === 'ONLINE') {
+          numberOfOnlinePayment += 1;
+        }
+
+        if (booking.status === 'CANCELLED') {
+          totalAmountOfRefund += booking.totalPrice;
+        }
+      }
+
+      // occupancy rate using basic math percentage
+      const occupancyRate: number =
+        (numberOfBookedSeatsCurrMonth / numberOfAvailableSeatsCurrMonth) * 100;
+
+      // group the bookings by their schedule id property and pick the top 3
+      const groupedBookingsByScheduleId: Record<string, Booking[]> =
+        retrievedBookingsCurrMonth.reduce(
+          (acc, booking) => {
+            if (!acc[booking.scheduleId]) {
+              acc[booking.scheduleId] = [];
+            }
+            acc[booking.scheduleId].push(booking);
+            return acc;
+          },
+          {} as Record<string, Booking[]>,
+        );
+
+      const retrievedTop3ScheduleIds: Booking[][] = Object.values(
+        groupedBookingsByScheduleId,
+      )
+        .sort((a, b) => b.length - a.length)
+        .slice(0, 3);
+
+      // calculate the total income of the month
+      const totalIncomeCurrMonth: number = retrievedBookingsCurrMonth.reduce(
+        (total, booking) => total + booking.totalPrice,
+        0,
+      );
+
+      // retrieve and calculate the total income of previous month
+      const prevMonth: number = currMonth === 0 ? 11 : currMonth - 1;
+
+      const prevMonthReportTimeFrom: Date = new Date(currYear, prevMonth, 1);
+
+      const prevMonthReportTimeTo: Date = new Date(
+        currYear,
+        prevMonth + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      // retrieve all the successful bookings of the previous month
+      const previousMonthBookings: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                status: 'PAID',
+              },
+              {
+                createdAt: {
+                  gte: prevMonthReportTimeFrom.toISOString(),
+                },
+              },
+              {
+                createdAt: {
+                  lte: prevMonthReportTimeTo.toISOString(),
+                },
+              },
+            ],
+          },
+        });
+
+      // calculate the total income of the previous month
+      const totalIncomePrevMonth: number = previousMonthBookings.reduce(
+        (total, booking) => total + booking.totalPrice,
+        0,
+      );
+
+      // conevert the total income of current month and previous month using basic math percentage
+      const revenueComparedToPreviousMonth: number =
+        ((totalIncomeCurrMonth - totalIncomePrevMonth) / totalIncomePrevMonth) *
+        100;
+
+      // retrieve all the refund for the refund of the month
+      const retrievedRefundsCurrMonth: Refund[] | null =
+        await this.prisma.refund.findMany({
+          where: {
+            AND: [
+              {
+                isMoneyRefunded: true,
+              },
+              {
+                createdAt: {
+                  gte: reportTimeFrom.toISOString(),
+                },
+              },
+              {
+                createdAt: {
+                  lte: reportTimeTo.toISOString(),
+                },
+              },
+            ],
+          },
+        });
+
+      // get the top 20 refunds
+      const top20Refunds: Refund[] = retrievedRefundsCurrMonth.slice(0, 20);
+
+      return {
+        status: 'success',
+        message: 'Financial data retrieved successfully.',
+        data: {
+          reportTime: {
+            from: reportTimeFrom,
+            to: reportTimeTo,
+          },
+          kpis: {
+            totalRevenue: totalIncomeCurrMonth,
+            totalBookings: retrievedBookingsCurrMonth.length,
+            confirmed: retrievedBookingsCurrMonth.filter(
+              (booking) => booking.status === 'PAID',
+            ).length,
+            refunds: retrievedBookingsCurrMonth.filter(
+              (booking) => booking.status === 'CANCELLED',
+            ).length,
+            seatOccupancyRate: occupancyRate,
+          },
+          revenue: {
+            topRoutes: await Promise.all(
+              retrievedTop3ScheduleIds.map(async (scheduledDocument) => {
+                // retrieve the schedule document from the schedule id
+                const retrievedSchedule: Schedule | null =
+                  await this.prisma.schedule.findUnique({
+                    where: {
+                      id: scheduledDocument[0].scheduleId,
+                    },
+                  });
+                // retrieve the route from the route id in schedule document
+                const retrievedRoute: Route | null =
+                  await this.prisma.route.findUnique({
+                    where: {
+                      id: retrievedSchedule?.routeId,
+                    },
+                  });
+
+                // use a reducer function to calculate the total earning of that route
+                const totalRevenue: number = scheduledDocument.reduce(
+                  (total, booking) => {
+                    return total + booking.totalPrice;
+                  },
+                  0,
+                );
+
+                return {
+                  scheduleId: retrievedSchedule?.id ?? null,
+                  origin: retrievedRoute?.origin ?? null,
+                  destination: retrievedRoute?.destination ?? null,
+                  totalRevenue: totalRevenue,
+                  totalBookings: scheduledDocument.length,
+                };
+              }),
+            ),
+            revenueComparedToPreviousMonth: revenueComparedToPreviousMonth,
+          },
+          paymentMetaData: {
+            numberOfCashPayment: numberOfCashPayment,
+            numberOfOnlinePayment: numberOfOnlinePayment,
+          },
+          refundMetaData: {
+            count: retrievedRefundsCurrMonth.length,
+            totalAmount: totalAmountOfRefund,
+            commonReasons: top20Refunds.map((refund) => {
+              return refund.reason;
+            }),
           },
         },
       };
