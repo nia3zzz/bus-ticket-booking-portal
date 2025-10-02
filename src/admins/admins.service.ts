@@ -26,6 +26,7 @@ import {
   getTripsValidator,
   getTripValidator,
   getUserValidator,
+  operationalDashboardValidator,
   startTripValidator,
   updateBusValidator,
   updateMoneyRefundValidator,
@@ -399,6 +400,97 @@ export interface FinancialDashboardOutputPropertyInterface {
     commonReasons: string[];
   };
 }
+
+// type declaration for the interface of Operational Dashboard Service's data property in it's response body
+export interface OperationalDashboardOutputPropertyInterface {
+  reportTime: {
+    from: Date;
+    to: Date;
+  };
+  remainingSchedules: {
+    scheduleId: string | null;
+    estimatedDepartureTimeDate: Date | null;
+    estimatedArrivalTimeDate: Date | null;
+    bus: {
+      busId: string | null;
+      busRegistrationNumber: string | null;
+      busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+      busClass: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+      remainingSeats: JsonValue;
+      busPicture: string | null;
+      driver: {
+        driverId: string | null;
+        driverFirstName: string | null;
+        driverLastName: string | null;
+        driverPhoneNumber: string | null;
+        driverProfilePicture: string | null;
+      };
+    };
+    route: {
+      routeId: string | null;
+      origin: string | null;
+      destination: string | null;
+      estimatedTimeInMin: number | null;
+    };
+    tripStatus: 'UNTRACKED' | 'PENDING' | 'COMPLETED';
+  }[];
+  pendingTrips: {
+    scheduleId: string | null;
+    estimatedDepartureTimeDate: Date | null;
+    estimatedArrivalTimeDate: Date | null;
+    bus: {
+      busId: string | null;
+      busRegistrationNumber: string | null;
+      busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+      remainingSeats: JsonValue;
+      busPicture: string | null;
+      driver: {
+        driverId: string | null;
+        driverFirstName: string | null;
+        driverLastName: string | null;
+        driverPhoneNumber: string | null;
+        driverProfilePicture: string | null;
+      };
+    };
+    route: {
+      routeId: string | null;
+      origin: string | null;
+      destination: string | null;
+      estimatedTimeInMin: number | null;
+    };
+    tripStatus: 'UNTRACKED' | 'PENDING' | 'COMPLETED';
+  }[];
+}
+
+// type declaration for the interface of ungrouped Schedule Document
+interface ScheduleDocumentType {
+  scheduleId: string | null;
+  estimatedDepartureTimeDate: Date | null;
+  estimatedArrivalTimeDate: Date | null;
+  bus: {
+    busId: string | null;
+    busRegistrationNumber: string | null;
+    busType: 'AC_BUS' | 'NONE_AC_BUS' | 'SLEEPER_BUS' | null;
+    busClass: 'ECONOMY' | 'BUSINESS' | 'FIRSTCLASS' | null;
+    remainingSeats: JsonValue | null;
+    busPicture: string | null;
+    driver: {
+      driverId: string | null;
+      driverFirstName: string | null;
+      driverLastName: string | null;
+      driverPhoneNumber: string | null;
+      driverProfilePicture: string | null;
+    };
+  };
+  route: {
+    routeId: string | null;
+    origin: string | null;
+    destination: string | null;
+    estimatedTimeInMin: number | null;
+  };
+  tripStatus: 'UNTRACKED' | 'PENDING' | 'COMPLETED';
+}
+[];
 
 // declaring a bunch of variables that will be tasked to define the seatings of bus model depending on their class and types
 const NONE_AC_BUS_ECONOMY_CLASS_SEATS: { [key: number]: string } = {
@@ -3525,6 +3617,262 @@ export class AdminsService {
               return refund.reason;
             }),
           },
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Something went wrong.',
+      });
+    }
+  }
+
+  // defining a controller that will return data required for operational dashboard only accessable to admins
+  async operationalDashboardService(requestQueries: any): Promise<{
+    status: string;
+    message: string;
+    data: OperationalDashboardOutputPropertyInterface;
+  }> {
+    // validate the provided queries as service parameters
+    const validatedQueries =
+      operationalDashboardValidator.safeParse(requestQueries);
+
+    if (!validatedQueries.success) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Failed in type validation.',
+        errors: validatedQueries.error.errors,
+      });
+    }
+
+    try {
+      // build up the date with iso format for working to retrieve information from orm
+      const today = new Date();
+      const currYear: number =
+        validatedQueries.data.year ?? today.getFullYear();
+      const currMonth: number = validatedQueries.data.month ?? today.getMonth();
+      const currDay: number = validatedQueries.data.day ?? today.getDate();
+
+      const reportTimeFrom: Date = new Date(
+        currYear,
+        currMonth,
+        currDay,
+        0,
+        0,
+        0,
+      );
+
+      const reportTimeTo: Date = new Date(
+        currYear,
+        currMonth,
+        currDay,
+        23,
+        59,
+        59,
+      );
+
+      // retrieve all the bookings for today only using journey date
+      const retrievedBookingsCurrDay: Booking[] | null =
+        await this.prisma.booking.findMany({
+          where: {
+            AND: [
+              {
+                journeyDate: {
+                  gte: reportTimeFrom,
+                },
+              },
+              {
+                journeyDate: {
+                  lte: reportTimeTo,
+                },
+              },
+            ],
+          },
+        });
+
+      // group all bookings to get access to their schedule id and group them
+      const groupedBookingsByScheduleId: Record<string, Booking[]> =
+        retrievedBookingsCurrDay.reduce(
+          (acc, booking) => {
+            if (!acc[booking.scheduleId]) {
+              acc[booking.scheduleId] = [];
+            }
+            acc[booking.scheduleId].push(booking);
+            return acc;
+          },
+          {} as Record<string, Booking[]>,
+        );
+
+      // build up the ungrouped schedule documents array using the grouped schedules
+      const unGroupedScheduleDocuments: ScheduleDocumentType[] | [] =
+        await Promise.all(
+          Object.keys(groupedBookingsByScheduleId).map(async (scheduleId) => {
+            // retrieve the required datas and return as required interface
+            const retrievedSchedule: Schedule | null =
+              await this.prisma.schedule.findUnique({
+                where: {
+                  id: scheduleId,
+                },
+              });
+
+            const retrievedBus: Bus | null = await this.prisma.bus.findUnique({
+              where: {
+                id: retrievedSchedule?.busId,
+              },
+            });
+
+            const retrievedDriver: User | null =
+              await this.prisma.user.findUnique({
+                where: {
+                  id: retrievedBus?.driverId,
+                },
+              });
+
+            const retrievedRoute: Route | null =
+              await this.prisma.route.findUnique({
+                where: {
+                  id: retrievedSchedule?.routeId,
+                },
+              });
+
+            const retrievedTrip: Trip | null = await this.prisma.trip.findFirst(
+              {
+                where: {
+                  AND: [
+                    {
+                      scheduleId: retrievedSchedule?.id,
+                    },
+                    {
+                      journeyDate: {
+                        gte: reportTimeFrom,
+                      },
+                    },
+                    {
+                      journeyDate: {
+                        lte: reportTimeTo,
+                      },
+                    },
+                  ],
+                },
+              },
+            );
+
+            // retrieve the remaining seats to be booked
+            const retrieveBookingsCurrDay: Booking[] | null =
+              await this.prisma.booking.findMany({
+                where: {
+                  AND: [
+                    {
+                      scheduleId: retrievedSchedule?.id,
+                    },
+                    {
+                      journeyDate: {
+                        gte: reportTimeFrom,
+                      },
+                    },
+                    {
+                      journeyDate: {
+                        lte: reportTimeTo,
+                      },
+                    },
+                  ],
+                },
+              });
+
+            // retrieve the booked seats for the retrieved bookings
+            const retrievedBookedSeats: BookedSeat[][] = await Promise.all(
+              retrieveBookingsCurrDay.map(async (booking) => {
+                return await this.prisma.bookedSeat.findMany({
+                  where: { bookingId: booking?.id },
+                });
+              }),
+            );
+
+            // flatten the retrieved booked seats
+            const bookedSeats: [string, string][] = retrievedBookedSeats
+              .flat()
+              .reduce(
+                (seats, bookedSeat) => {
+                  const seatNumbers = bookedSeat.seatNumbers as
+                    | [string, string][]
+                    | null;
+                  return seats.concat(
+                    Array.isArray(seatNumbers) ? seatNumbers : [],
+                  );
+                },
+                [] as [string, string][],
+              );
+
+            // get all the seats from the bus document
+            const allSeats: [string, string][] = Object.entries(
+              retrievedBus?.seats ?? {},
+            );
+
+            // construct the remaining seats by filtering out the booked seats from all seats
+            const remainingSeats = allSeats.filter(
+              (seat) =>
+                !bookedSeats.some(
+                  (bookedSeat) =>
+                    bookedSeat[0] === seat[0] && bookedSeat[1] === seat[1],
+                ),
+            );
+
+            return {
+              scheduleId: retrievedSchedule?.id ?? null,
+              estimatedDepartureTimeDate:
+                retrievedSchedule?.estimatedDepartureTimeDate ?? null,
+              estimatedArrivalTimeDate:
+                retrievedSchedule?.estimatedArrivalTimeDate ?? null,
+              bus: {
+                busId: retrievedBus?.id ?? null,
+                busRegistrationNumber:
+                  retrievedBus?.busRegistrationNumber ?? null,
+                busType: retrievedBus?.busType ?? null,
+                busClass: retrievedBus?.class ?? null,
+                remainingSeats: remainingSeats,
+                busPicture: retrievedBus?.busPicture ?? null,
+                driver: {
+                  driverId: retrievedDriver?.id ?? null,
+                  driverFirstName: retrievedDriver?.firstName ?? null,
+                  driverLastName: retrievedDriver?.lastName ?? null,
+                  driverPhoneNumber: retrievedDriver?.phoneNumber ?? null,
+                  driverProfilePicture: retrievedDriver?.profilePicture ?? null,
+                },
+              },
+              route: {
+                routeId: retrievedRoute?.id ?? null,
+                origin: retrievedRoute?.origin ?? null,
+                destination: retrievedRoute?.destination ?? null,
+                estimatedTimeInMin: retrievedRoute?.estimatedTimeInMin ?? null,
+              },
+              tripStatus: retrievedTrip?.status ?? 'UNTRACKED',
+            };
+          }),
+        );
+
+      // group the unGroupedScheduleDocuments based on their trip status
+      let remainingSchedules: ScheduleDocumentType[] = [];
+      let pendingTrips: ScheduleDocumentType[] = [];
+
+      for (const schedule of unGroupedScheduleDocuments) {
+        if (schedule.tripStatus === 'PENDING') {
+          pendingTrips.push(schedule);
+        }
+
+        if (schedule.tripStatus === 'UNTRACKED') {
+          remainingSchedules.push(schedule);
+        }
+      }
+      return {
+        status: 'success',
+        message: 'Operations data retrieved successfully.',
+        data: {
+          reportTime: {
+            from: reportTimeFrom,
+            to: reportTimeTo,
+          },
+          remainingSchedules: remainingSchedules,
+          pendingTrips: pendingTrips,
         },
       };
     } catch (error) {

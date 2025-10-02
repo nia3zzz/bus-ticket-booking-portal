@@ -454,6 +454,32 @@ const financialDashboardValidator = z.object({
     .optional(),
 });
 
+const operationalDashboardValidator = z.object({
+  day: z.coerce
+    .number({
+      invalid_type_error: 'Month must be a number.',
+    })
+    .min(1, 'Month must be between 0 and 11.')
+    .max(31, 'Month must be between 0 and 11.')
+    .optional(),
+
+  month: z.coerce
+    .number({
+      invalid_type_error: 'Month must be a number.',
+    })
+    .min(0, 'Month must be between 0 and 11.')
+    .max(11, 'Month must be between 0 and 11.')
+    .optional(),
+
+  year: z.coerce
+    .number({
+      invalid_type_error: 'Year must be a number.',
+    })
+    .min(2000, 'Year must be between 2000 and 2100.')
+    .max(2100, 'Year must be between 2000 and 2100.')
+    .optional(),
+});
+
 export {
   getUserValidator,
   addDriverValidator,
@@ -477,4 +503,5 @@ export {
   updateMoneyRefundValidator,
   getBookingDataValidator,
   financialDashboardValidator,
+  operationalDashboardValidator,
 };
