@@ -7,6 +7,7 @@ import {
   Query,
   Request,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import {
   BookingsService,
@@ -23,6 +24,7 @@ export class BookingsController {
   // this controller function for bookings route will book a user's selected tickets on their selected bus
   @Post('/bookings')
   @UseGuards(AuthGuard)
+  @HttpCode(201)
   async createBooking(
     @Request() request: customExpressInterface,
     @Body() requestBody: typeof createBookingValidator,
