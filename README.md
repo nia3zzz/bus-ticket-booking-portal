@@ -65,4 +65,4 @@ As a reference guide for the project I had built some documentation for the proj
 
 - The prototyping, testing and documentation of all the APIs in this project were done by me in Postman. This documentation will include the request format and expected response, with all possible error responses explained. The link is given below:
 
-- https://soontobeadded.com
+- https://documenter.getpostman.com/view/32203863/2sB3WjyNnB
