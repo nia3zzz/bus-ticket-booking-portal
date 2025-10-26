@@ -57,10 +57,6 @@ As a reference guide for the project I had built some documentation for the proj
 
 #### System Designs
 
-- This is an Eraser-based system design, more specifically a database ORM visualizer that I built and used to reference other tables and columns. The link is given below:
-
-- https://app.eraser.io/workspace/okyBDOdvKSNHmZzVCJAg?origin=share
-
 #### Postman API Documentation
 
 - The prototyping, testing and documentation of all the APIs in this project were done by me in Postman. This documentation will include the request format and expected response, with all possible error responses explained. The link is given below:
